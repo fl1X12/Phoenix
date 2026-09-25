@@ -34,6 +34,9 @@ func Load(dir string) (*World, error) {
 			return nil, fmt.Errorf("side %s: %w", name, err)
 		}
 		s.Tiles = tiles
+		if err := s.normaliseBoss(name); err != nil {
+			return nil, fmt.Errorf("side %s: boss: %w", name, err)
+		}
 		for i := range s.Objects {
 			o := &s.Objects[i]
 			// A code panel may name its key as "code" instead of "key".
@@ -272,4 +275,57 @@ func (w *World) OtherSide(side string) string {
 		}
 	}
 	return ""
+}
+
+// normaliseBoss turns a side-level "boss" block into a boss object, which is the form the
+// client spawns from. The block's first path point is the spawn tile unless x/y are given.
+func (s *Side) normaliseBoss(side string) error {
+	if len(s.Boss) == 0 {
+		return nil
+	}
+	for _, o := range s.Objects {
+		if o.Type == "boss" {
+			return nil // already authored as an object
+		}
+	}
+	var block map[string]any
+	if err := json.Unmarshal(s.Boss, &block); err != nil {
+		return err
+	}
+	o := Object{ID: "boss_" + side, Type: "boss", W: 1, H: 1, Props: map[string]any{}}
+	if id, ok := block["id"].(string); ok && id != "" {
+		o.ID = id
+	}
+	x, hasX := block["x"].(float64)
+	y, hasY := block["y"].(float64)
+	if hasX && hasY {
+		o.X, o.Y = int(x), int(y)
+	} else {
+		path, _ := block["path"].([]any)
+		if len(path) == 0 {
+			path, _ = block["patrol"].([]any)
+		}
+		if len(path) == 0 {
+			return fmt.Errorf("needs x/y or a non-empty path")
+		}
+		pt, _ := path[0].([]any)
+		if len(pt) < 2 {
+			return fmt.Errorf("path points must be [x, y]")
+		}
+		px, _ := pt[0].(float64)
+		py, _ := pt[1].(float64)
+		o.X, o.Y = int(px), int(py)
+	}
+	for k, v := range block {
+		if k != "id" && k != "x" && k != "y" {
+			o.Props[k] = v
+		}
+	}
+	if _, ok := o.Props["patrol"]; !ok {
+		if p, ok := block["path"]; ok {
+			o.Props["patrol"] = p
+		}
+	}
+	s.Objects = append(s.Objects, o)
+	return nil
 }

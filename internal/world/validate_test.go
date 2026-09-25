@@ -226,3 +226,41 @@ func TestLegacyCodePanels(t *testing.T) {
 		t.Fatalf("want same-side error, got %v", err)
 	}
 }
+
+// A side-level boss block becomes a boss object so the client spawns it.
+func TestBossBlockBecomesObject(t *testing.T) {
+	for _, dir := range []string{"testdata/colour", "../../worlds/default"} {
+		w, err := Load(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := 0
+		for side, s := range w.Sides {
+			if len(s.Boss) == 0 {
+				continue
+			}
+			var boss *Object
+			for i := range s.Objects {
+				if s.Objects[i].Type == "boss" {
+					boss = &s.Objects[i]
+				}
+			}
+			if boss == nil {
+				t.Fatalf("%s side %s: boss block but no boss object", dir, side)
+			}
+			found++
+			if _, ok := boss.Props["patrol"]; !ok {
+				t.Fatalf("%s side %s: boss object has no patrol: %+v", dir, side, boss.Props)
+			}
+			if boss.X == 0 && boss.Y == 0 {
+				t.Fatalf("%s side %s: boss has no position", dir, side)
+			}
+			if _, ok := w.Colors[boss.ID]; ok {
+				t.Fatalf("%s: boss should have no glow colour", dir)
+			}
+		}
+		if found == 0 {
+			t.Fatalf("%s: no boss block found", dir)
+		}
+	}
+}
