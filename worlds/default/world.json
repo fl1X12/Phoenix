@@ -1,6 +1,6 @@
 {
   "tileSize": 32,
-  "camera": { "radius": 8, "darkRadius": 2.4 },
+  "camera": { "radius": 7, "darkRadius": 1.5 },
   "debuff": { "seconds": 15, "speed": 0.55, "radius": 3.6, "disengage": true },
 
   "codes": {
