@@ -50,7 +50,12 @@ func main() {
 	mux.HandleFunc("GET /healthz", func(rw http.ResponseWriter, _ *http.Request) { rw.Write([]byte("ok")) })
 	// Keep-alive target for an external cron (Render free tier sleeps after 15 min idle).
 	started := time.Now()
-	mux.HandleFunc("GET /ping", func(rw http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /ping", func(rw http.ResponseWriter, req *http.Request) {
+		ip := req.Header.Get("X-Forwarded-For") // Render's proxy sets this; RemoteAddr is the proxy
+		if ip == "" {
+			ip = req.RemoteAddr
+		}
+		log.Printf("ping from %s (%s), uptime %s, rooms %d", ip, req.UserAgent(), time.Since(started).Round(time.Second), len(lobby.Codes()))
 		writeJSON(rw, map[string]any{
 			"ok":     true,
 			"uptime": time.Since(started).Round(time.Second).String(),
