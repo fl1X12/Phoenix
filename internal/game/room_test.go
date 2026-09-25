@@ -388,3 +388,58 @@ func TestDefaultLevel(t *testing.T) {
 		t.Fatal("exit should start closed")
 	}
 }
+
+// waitClosed fails unless the client's socket is closed by the server within 2s.
+func (c *client) waitClosed() {
+	c.t.Helper()
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case _, ok := <-c.in:
+			if !ok {
+				return
+			}
+		case <-timeout:
+			c.t.Fatalf("[%s] socket not closed", c.side)
+		}
+	}
+}
+
+func waitRoomGone(t *testing.T, lobby *game.Lobby, code string) {
+	t.Helper()
+	for i := 0; i < 200; i++ {
+		if lobby.Get(code, false) == nil {
+			if _, ok := lobby.SideForToken(code, "x"); !ok {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("room %s still in the lobby", code)
+}
+
+func TestLeaveEndsGame(t *testing.T) {
+	a, b, lobby := setup(t)
+	a.send("leave", struct{}{})
+	if g := b.expect("game_over"); g["reason"] != "partner_left" {
+		t.Fatalf("game_over: %v", g)
+	}
+	a.waitClosed()
+	b.waitClosed()
+	waitRoomGone(t, lobby, "TEST")
+	if _, ok := lobby.SideForToken("TEST", b.tok); ok {
+		t.Fatal("token still resolves after leave")
+	}
+}
+
+func TestLeaveWhileWaiting(t *testing.T) {
+	a, _, lobby := setup(t)
+	// Fresh room with one player: leaving frees it at once instead of after the grace period.
+	c := newClient(t, redial(t, a))
+	c.send("join", map[string]string{"code": "SOLO"})
+	c.expect("assigned")
+	c.expect("waiting")
+	c.send("leave", struct{}{})
+	c.waitClosed()
+	waitRoomGone(t, lobby, "SOLO")
+}

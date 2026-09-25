@@ -49,6 +49,7 @@ Plain WebSockets, JSON, one envelope for every message: `{ "type": "...", "data"
 | C→S | `interact` | `{ id, action, value? }` | Using an object; `value` carries a keypad code |
 | C→S | `enter` | `{ portalId }` | Walking through the exit door |
 | C→S | `room` | `{ id }` | Crossing a room boundary |
+| C→S | `leave` | `{}` | Leave for good: ends the game for both players and frees the room (also valid while waiting) |
 | S→C | `assigned` | `{ code, side, token, voice? }` | Side dealt at random; show the code to your partner, keep the token for reconnects. `voice` = URL of a separate voice relay when one runs, else use `/voice` on the game host |
 | S→C | `waiting` | `{}` | Partner not yet connected |
 | S→C | `world` | `{ side, tileSize, camera, tiles, spawn, rooms, objects, colors, state }` | Game start or reconnect; this side only |
@@ -57,6 +58,7 @@ Plain WebSockets, JSON, one envelope for every message: `{ "type": "...", "data"
 | S→C | `partner` | `{ connected }` | Partner dropped (slot held 2 min) or came back |
 | S→C | `error` | `{ reason }` | Rejected message. Socket closes after `room full` / `unknown token` |
 | S→C | `game_complete` | `{}` | A player crossed the open exit door |
+| S→C | `game_over` | `{ reason }` | Game ended early: `partner_left` (they pressed leave) or `partner_timeout` (gone past the 2 min grace). Socket closes after |
 
 Generated codes are 4 chars from `A-Z2-9` minus `I`/`O`. `join` accepts 1–16 chars of `[A-Za-z0-9_-]` (upper-cased) but only for a live room; `no such room` otherwise. Socket closes after `room full` / `unknown token`.
 

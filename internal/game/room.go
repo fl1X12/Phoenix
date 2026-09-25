@@ -173,6 +173,9 @@ func (r *Room) Run() {
 		}
 	}
 	for _, p := range r.players {
+		if p.gone != nil {
+			p.gone.Stop() // nobody reads events any more
+		}
 		if p.conn != nil {
 			p.conn.CloseAfterSend()
 		}
@@ -192,6 +195,7 @@ func (r *Room) handle(ev event) {
 	case evGraceExpired:
 		if p := r.players[ev.side]; p != nil && p.conn == nil {
 			log.Printf("room %s: side %s grace expired", r.Code, ev.side)
+			r.tellOther(p, "game_over", map[string]string{"reason": "partner_timeout"})
 			r.done = true
 		}
 	case evDebug:
@@ -200,6 +204,10 @@ func (r *Room) handle(ev event) {
 		p := r.playerOf(ev.conn)
 		if p == nil {
 			ev.conn.Send("error", errMsg("not joined"))
+			return
+		}
+		if ev.env.Type == "leave" { // allowed before the game starts, so a waiting creator can cancel
+			r.quit(p)
 			return
 		}
 		r.message(p, ev.env)
@@ -289,6 +297,14 @@ func (r *Room) leave(c *ws.Conn) {
 	p.gone = time.AfterFunc(GracePeriod, func() {
 		r.events <- event{kind: evGraceExpired, side: side}
 	})
+}
+
+// quit ends the game for everyone: a player pressed leave. The partner is told why, then Run
+// closes both sockets, drops the room from the lobby and tears down voice.
+func (r *Room) quit(p *Player) {
+	log.Printf("room %s: side %s left, ending the game", r.Code, p.Side)
+	r.tellOther(p, "game_over", map[string]string{"reason": "partner_left"})
+	r.done = true
 }
 
 func (r *Room) tellOther(p *Player, typ string, data any) {
