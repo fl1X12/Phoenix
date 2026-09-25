@@ -149,7 +149,7 @@ func (r *Room) Run() {
 	}
 	for _, p := range r.players {
 		if p.conn != nil {
-			p.conn.Close()
+			p.conn.CloseAfterSend()
 		}
 	}
 	log.Printf("room %s: closed", r.Code)
