@@ -29,11 +29,11 @@ func TestCreateCodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lobby := game.NewLobby(func() *world.World { return w })
+	lobby := game.NewLobby(func(string) *world.World { return w })
 	shape := regexp.MustCompile(`^[A-HJ-NP-Z2-9]{4}$`)
 	seen := map[string]bool{}
 	for i := 0; i < 50; i++ {
-		r := lobby.Create()
+		r := lobby.Create("")
 		if !shape.MatchString(r.Code) {
 			t.Fatalf("code %q has the wrong shape", r.Code)
 		}
@@ -47,5 +47,27 @@ func TestCreateCodes(t *testing.T) {
 	}
 	if lobby.Get("ZZZZ", false) != nil {
 		t.Fatal("unknown code resolved")
+	}
+}
+
+func TestCreateUnknownWorld(t *testing.T) {
+	w, err := world.Load(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lobby := game.NewLobby(func(id string) *world.World {
+		if id == "" || id == w.Name {
+			return w
+		}
+		return nil
+	})
+	if r := lobby.Create("nope"); r != nil {
+		t.Fatalf("unknown world made room %q", r.Code)
+	}
+	if r := lobby.Create(w.Name); r == nil {
+		t.Fatal("known world made no room")
+	}
+	if len(lobby.Codes()) != 1 {
+		t.Fatalf("want 1 room, got %v", lobby.Codes())
 	}
 }

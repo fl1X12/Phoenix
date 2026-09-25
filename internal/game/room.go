@@ -482,8 +482,11 @@ func (r *Room) GiveItem(side, item string, give bool) error {
 	return err
 }
 
-func (r *Room) assigned(p *Player) map[string]string {
-	m := map[string]string{"code": r.Code, "side": p.Side, "token": p.Token}
+func (r *Room) assigned(p *Player) map[string]any {
+	m := map[string]any{
+		"code": r.Code, "side": p.Side, "token": p.Token,
+		"world": map[string]string{"id": r.world.Name, "title": r.world.Title},
+	}
 	if r.VoiceURL != "" {
 		m["voice"] = r.VoiceURL
 	}

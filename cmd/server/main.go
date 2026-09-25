@@ -80,9 +80,22 @@ func runGame(mux *http.ServeMux, hub *voice.Hub, withVoice bool, worldDir string
 		log.Printf("world %q loaded: %d sides, %d rules, %d keys", w.Name, len(w.Sides), len(w.Rules), len(w.Visibility))
 	}
 
-	pick := func() *world.World {
-		ws := *current.Load()
-		return ws[rand.IntN(len(ws))]
+	// pick returns the world with the given id, or for "" / "random" a random non-hidden one.
+	pick := func(id string) *world.World {
+		all := *current.Load()
+		if id == "" || id == "random" {
+			pool := visibleWorlds(all)
+			if len(pool) == 0 {
+				pool = all
+			}
+			return pool[rand.IntN(len(pool))]
+		}
+		for _, w := range all {
+			if w.Name == id {
+				return w
+			}
+		}
+		return nil
 	}
 	lobby := game.NewLobby(pick)
 	if withVoice {
@@ -176,6 +189,19 @@ func runGame(mux *http.ServeMux, hub *voice.Hub, withVoice bool, worldDir string
 		}
 		writeJSON(rw, r.Snapshot().State)
 	})
+	// Public world list for the create-room picker. The client shows a picker only when there are two or more.
+	mux.HandleFunc("GET /worlds", func(rw http.ResponseWriter, _ *http.Request) {
+		type entry struct {
+			ID          string `json:"id"`
+			Title       string `json:"title"`
+			Description string `json:"description,omitempty"`
+		}
+		out := []entry{}
+		for _, w := range visibleWorlds(*current.Load()) {
+			out = append(out, entry{w.Name, w.Title, w.Description})
+		}
+		writeJSON(rw, map[string]any{"worlds": out})
+	})
 	mux.HandleFunc("GET /debug/worlds", func(rw http.ResponseWriter, _ *http.Request) {
 		var names []string
 		for _, w := range *current.Load() {
@@ -192,6 +218,16 @@ func runGame(mux *http.ServeMux, hub *voice.Hub, withVoice bool, worldDir string
 		current.Store(&nw)
 		fmt.Fprintf(rw, "reloaded %d world(s); applies to new rooms\n", len(nw))
 	})
+}
+
+func visibleWorlds(all []*world.World) []*world.World {
+	var out []*world.World
+	for _, w := range all {
+		if !w.Hidden {
+			out = append(out, w)
+		}
+	}
+	return out
 }
 
 // runVoice mounts only the voice relay. Tokens are verified against the game server at GAME_URL.
@@ -253,7 +289,14 @@ func serveWS(lobby *game.Lobby, rw http.ResponseWriter, req *http.Request) {
 			if room == nil {
 				switch env.Type {
 				case "create":
-					room = lobby.Create()
+					var d struct {
+						World string `json:"world"`
+					}
+					_ = json.Unmarshal(env.Data, &d) // empty or missing data means a random world
+					if room = lobby.Create(d.World); room == nil {
+						c.Send("error", map[string]string{"reason": "unknown world"})
+						continue
+					}
 					room.Join(c, "")
 				case "join":
 					var d struct {

@@ -80,6 +80,9 @@ func Load(dir string) (*World, error) {
 		}
 	}
 	w.Name = filepath.Base(filepath.Clean(dir))
+	if w.Title == "" {
+		w.Title = w.Name
+	}
 	return &w, nil
 }
 

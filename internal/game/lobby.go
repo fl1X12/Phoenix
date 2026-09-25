@@ -20,7 +20,7 @@ type Lobby struct {
 	mu     sync.Mutex
 	rooms  map[string]*Room
 	tokens map[string]map[string]string // code -> token -> side; mirrors each room's players
-	world  func() *world.World
+	world  func(id string) *world.World // "" picks at random; nil for an unknown id
 
 	// OnRoomClosed, if set, runs after a room is removed. Used to tear down voice peers.
 	OnRoomClosed func(code string)
@@ -29,7 +29,7 @@ type Lobby struct {
 	VoiceURL string
 }
 
-func NewLobby(w func() *world.World) *Lobby {
+func NewLobby(w func(id string) *world.World) *Lobby {
 	return &Lobby{rooms: map[string]*Room{}, tokens: map[string]map[string]string{}, world: w}
 }
 
@@ -45,7 +45,7 @@ func (l *Lobby) Get(code string, create bool) *Room {
 	if !create {
 		return nil
 	}
-	r := NewRoom(code, l.world(), l.remove)
+	r := NewRoom(code, l.world(""), l.remove)
 	r.onToken = l.addToken
 	r.VoiceURL = l.VoiceURL
 	l.rooms[code] = r
@@ -53,8 +53,13 @@ func (l *Lobby) Get(code string, create bool) *Room {
 	return r
 }
 
-// Create starts a room under a new random code that no live room is using.
-func (l *Lobby) Create() *Room {
+// Create starts a room on world id ("" for a random one) under a new random code that no live room
+// is using. It returns nil if id names no loaded world.
+func (l *Lobby) Create(id string) *Room {
+	w := l.world(id)
+	if w == nil {
+		return nil
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for {
@@ -62,7 +67,7 @@ func (l *Lobby) Create() *Room {
 		if _, taken := l.rooms[code]; taken {
 			continue
 		}
-		r := NewRoom(code, l.world(), l.remove)
+		r := NewRoom(code, w, l.remove)
 		r.onToken = l.addToken
 		r.VoiceURL = l.VoiceURL
 		l.rooms[code] = r

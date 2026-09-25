@@ -9,10 +9,13 @@ each Unity client owns its own player. See `The Other Side — technical design.
 go run ./cmd/server -addr :8080 -world worlds
 ```
 
-`-world` takes either one world directory (holding `world.json`) or a directory of them. With several,
-each new room picks one at random. Every world must pass validation or the server refuses to start.
+`-world` takes either one world directory (holding `world.json`) or a directory of them. Every world must
+pass validation or the server refuses to start. A world's id is its directory name; `world.json` may add
+`title`, `description` and `hidden` (loaded but left out of `/worlds` and random picks, still creatable by id).
 
 - `GET /healthz`
+- `GET /worlds` — `{ worlds: [{ id, title, description? }] }` for the create-room picker. Client shows a
+  picker (plus a "Random" choice) only when there are two or more; with one it sends `create {}`
 - `GET /ws` — game socket
 - `GET /voice?code=&token=` — voice relay socket, see [Voice](#voice)
 - `GET /ping` — keep-alive target for an external cron; logs the hit
@@ -44,14 +47,14 @@ Plain WebSockets, JSON, one envelope for every message: `{ "type": "...", "data"
 
 | Direction | Type | Data | When |
 | --- | --- | --- | --- |
-| C→S | `create` | `{}` | First message on the socket: open a new room. The code comes back in `assigned` |
+| C→S | `create` | `{ world? }` | First message on the socket: open a new room on world id `world` (omitted or `"random"` = random). The code comes back in `assigned`; an unknown id gets `error unknown world` and the socket stays open |
 | C→S | `join` | `{ code, token? }` | First message on the socket: enter an existing room. `token` when reconnecting |
 | C→S | `interact` | `{ id, action, value? }` | Using an object; `value` carries a keypad code |
 | C→S | `enter` | `{ portalId }` | Walking through the exit door |
 | C→S | `room` | `{ id }` | Crossing a room boundary |
 | C→S | `log` | `{ msg }` | Client diagnostics; server prints `client CODE/SIDE: msg` (voice counters, mic info) |
 | C→S | `leave` | `{}` | Leave for good: ends the game for both players and frees the room (also valid while waiting) |
-| S→C | `assigned` | `{ code, side, token, voice? }` | Side dealt at random; show the code to your partner, keep the token for reconnects. `voice` = URL of a separate voice relay when one runs, else use `/voice` on the game host |
+| S→C | `assigned` | `{ code, side, token, world: { id, title }, voice? }` | Side dealt at random; `world` is what the creator picked, so the joiner can show it; show the code to your partner, keep the token for reconnects. `voice` = URL of a separate voice relay when one runs, else use `/voice` on the game host |
 | S→C | `waiting` | `{}` | Partner not yet connected |
 | S→C | `world` | `{ side, tileSize, camera, tiles, spawn, rooms, objects, colors, state }` | Game start or reconnect; this side only |
 | S→C | `patch` | `{ key: value, … }` | Changed keys this player can see. Always sent **before** any `fx` from the same event |

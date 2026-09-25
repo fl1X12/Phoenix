@@ -118,7 +118,7 @@ func setupWorld(t *testing.T, dir string) (*client, *client, *game.Lobby) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lobby := game.NewLobby(func() *world.World { return w })
+	lobby := game.NewLobby(func(string) *world.World { return w })
 	up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		sock, _ := up.Upgrade(rw, req, nil)
@@ -450,7 +450,7 @@ func TestLogWhileWaiting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lobby := game.NewLobby(func() *world.World { return w })
+	lobby := game.NewLobby(func(string) *world.World { return w })
 	up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		sock, _ := up.Upgrade(rw, req, nil)

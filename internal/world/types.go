@@ -167,16 +167,19 @@ var PanelColors = []string{"red", "green", "blue", "yellow"}
 
 // World is the whole level file.
 type World struct {
-	Name      string              `json:"-"` // directory name, set at load
-	TileSize  int                 `json:"tileSize"`
-	Camera    Camera              `json:"camera"`
-	Debuff    json.RawMessage     `json:"debuff,omitempty"` // boss debuff tuning; passed through
-	Sides     map[string]*Side    `json:"sides"`
-	Initial   map[string]any      `json:"initial"`
-	Derived   map[string]string   `json:"derived"`         // key -> boolean expression over keys
-	DerivedFx map[string]string   `json:"derivedFx"`       // derived key -> fx effect sent to all when it changes
-	Codes     map[string]CodeSpec `json:"codes,omitempty"` // composed keypad answers
-	Rules     []Rule              `json:"rules"`
+	Name        string              `json:"-"`                     // directory name, set at load; the world's id
+	Title       string              `json:"title,omitempty"`       // shown in the world picker; defaults to Name
+	Description string              `json:"description,omitempty"` // one line under the title in the picker
+	Hidden      bool                `json:"hidden,omitempty"`      // left out of /worlds and random picks; still creatable by id
+	TileSize    int                 `json:"tileSize"`
+	Camera      Camera              `json:"camera"`
+	Debuff      json.RawMessage     `json:"debuff,omitempty"` // boss debuff tuning; passed through
+	Sides       map[string]*Side    `json:"sides"`
+	Initial     map[string]any      `json:"initial"`
+	Derived     map[string]string   `json:"derived"`         // key -> boolean expression over keys
+	DerivedFx   map[string]string   `json:"derivedFx"`       // derived key -> fx effect sent to all when it changes
+	Codes       map[string]CodeSpec `json:"codes,omitempty"` // composed keypad answers
+	Rules       []Rule              `json:"rules"`
 
 	// Derived at load.
 	Visibility map[string][]string `json:"-"` // state key -> sides that receive it
