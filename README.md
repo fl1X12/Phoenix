@@ -138,8 +138,7 @@ internal/world/    types, loader (json + ASCII maps), validation, visibility/col
 internal/game/     lobby, room goroutine, rules, inventory, codes, diff/patches
 internal/voice/    voice relay hub: per-room peers, forward-or-drop, rate limit
 internal/ws/       socket wrapper: write queue, ping/pong, read deadline
-worlds/<name>/     one world per directory; `default` is the live level
-worlds/archive/    retired levels, not loaded (e.g. `-world worlds/archive/classic` to play one)
+worlds/<name>/     one world per directory, id = directory name: `default` (the current level), `classic` (the original)
 ```
 
 One goroutine per room owns all state; connections push events through a channel, so there are no locks.
