@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/fl1X12/phoenix/internal/game"
+	"github.com/fl1X12/phoenix/internal/voice"
 	"github.com/fl1X12/phoenix/internal/world"
 	"github.com/fl1X12/phoenix/internal/ws"
 )
@@ -29,6 +30,7 @@ var upgrader = websocket.Upgrader{
 func main() {
 	addr := flag.String("addr", "", "listen address (default $PORT or :8080)")
 	worldDir := flag.String("world", "worlds", "a world directory (holds world.json), or a directory of world directories; each new room picks one at random")
+	voiceLoop := flag.Bool("voice-loop", false, "echo a player's voice frames back to them while their partner has no voice connection (solo testing)")
 	flag.Parse()
 	if *addr == "" {
 		if p := os.Getenv("PORT"); p != "" { // Render, Railway, Fly all set PORT
@@ -53,6 +55,8 @@ func main() {
 		return ws[rand.IntN(len(ws))]
 	}
 	lobby := game.NewLobby(pick)
+	hub := voice.New(*voiceLoop)
+	lobby.OnRoomClosed = hub.CloseRoom
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(rw http.ResponseWriter, _ *http.Request) { rw.Write([]byte("ok")) })
@@ -68,10 +72,12 @@ func main() {
 			"ok":     true,
 			"uptime": time.Since(started).Round(time.Second).String(),
 			"rooms":  len(lobby.Codes()),
+			"voice":  hub.Stats(),
 			"time":   time.Now().UTC().Format(time.RFC3339),
 		})
 	})
 	mux.HandleFunc("GET /ws", func(rw http.ResponseWriter, req *http.Request) { serveWS(lobby, rw, req) })
+	mux.HandleFunc("GET /voice", func(rw http.ResponseWriter, req *http.Request) { serveVoice(lobby, hub, rw, req) })
 
 	// Debug endpoints.
 	mux.HandleFunc("GET /debug/rooms", func(rw http.ResponseWriter, _ *http.Request) {
@@ -83,7 +89,7 @@ func main() {
 			http.Error(rw, "no such room", 404)
 			return
 		}
-		writeJSON(rw, r.Snapshot())
+		writeJSON(rw, map[string]any{"room": r.Snapshot(), "voice": hub.Sides(r.Code)})
 	})
 	mux.HandleFunc("POST /debug/rooms/{code}/set", func(rw http.ResponseWriter, req *http.Request) {
 		r := lobby.Get(req.PathValue("code"), false)
@@ -182,6 +188,28 @@ func serveWS(lobby *game.Lobby, rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
+}
+
+// serveVoice authenticates ?code=&token= against the lobby, upgrades, and hands the socket to the voice hub.
+// Auth happens before the upgrade so a bad request gets a plain HTTP status.
+func serveVoice(lobby *game.Lobby, hub *voice.Hub, rw http.ResponseWriter, req *http.Request) {
+	code := strings.ToUpper(req.URL.Query().Get("code"))
+	token := req.URL.Query().Get("token")
+	if !game.ValidCode(code) || token == "" {
+		http.Error(rw, "code and token required", http.StatusBadRequest)
+		return
+	}
+	side, ok := lobby.SideForToken(code, token)
+	if !ok {
+		http.Error(rw, "unknown room or token", http.StatusUnauthorized)
+		return
+	}
+	sock, err := upgrader.Upgrade(rw, req, nil)
+	if err != nil {
+		log.Printf("voice upgrade: %v", err)
+		return
+	}
+	hub.Serve(sock, code, side)
 }
 
 func writeJSON(rw http.ResponseWriter, v any) {

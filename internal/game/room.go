@@ -58,7 +58,8 @@ type Room struct {
 	started bool
 	done    bool
 	onClose func(code string)
-	pending []pendingFx // cues queued during handle, sent after the patch
+	onToken func(code, token, side string) // called when a fresh player gets a token; may be nil
+	pending []pendingFx                    // cues queued during handle, sent after the patch
 }
 
 type pendingFx struct {
@@ -253,6 +254,9 @@ func (r *Room) join(c *ws.Conn, token string) {
 		}
 		p := &Player{Side: s, Token: newToken(), conn: c}
 		r.players[s] = p
+		if r.onToken != nil {
+			r.onToken(r.Code, p.Token, s)
+		}
 		c.Send("assigned", map[string]string{"side": s, "token": p.Token})
 		log.Printf("room %s: side %s joined", r.Code, s)
 		if len(r.players) == len(r.world.Sides) {

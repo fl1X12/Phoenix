@@ -11,13 +11,17 @@ var codeRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,16}$`)
 
 // Lobby maps room codes to running rooms. A join on an unknown code creates the room.
 type Lobby struct {
-	mu    sync.Mutex
-	rooms map[string]*Room
-	world func() *world.World
+	mu     sync.Mutex
+	rooms  map[string]*Room
+	tokens map[string]map[string]string // code -> token -> side; mirrors each room's players
+	world  func() *world.World
+
+	// OnRoomClosed, if set, runs after a room is removed. Used to tear down voice peers.
+	OnRoomClosed func(code string)
 }
 
 func NewLobby(w func() *world.World) *Lobby {
-	return &Lobby{rooms: map[string]*Room{}, world: w}
+	return &Lobby{rooms: map[string]*Room{}, tokens: map[string]map[string]string{}, world: w}
 }
 
 func ValidCode(code string) bool { return codeRe.MatchString(code) }
@@ -33,6 +37,7 @@ func (l *Lobby) Get(code string, create bool) *Room {
 		return nil
 	}
 	r := NewRoom(code, l.world(), l.remove)
+	r.onToken = l.addToken
 	l.rooms[code] = r
 	go r.Run()
 	return r
@@ -41,7 +46,30 @@ func (l *Lobby) Get(code string, create bool) *Room {
 func (l *Lobby) remove(code string) {
 	l.mu.Lock()
 	delete(l.rooms, code)
+	delete(l.tokens, code)
+	cb := l.OnRoomClosed
 	l.mu.Unlock()
+	if cb != nil {
+		cb(code)
+	}
+}
+
+func (l *Lobby) addToken(code, token, side string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.tokens[code] == nil {
+		l.tokens[code] = map[string]string{}
+	}
+	l.tokens[code][token] = side
+}
+
+// SideForToken resolves a player token to its side without touching the room goroutine,
+// so it is safe to call from any HTTP handler even while the room is shutting down.
+func (l *Lobby) SideForToken(code, token string) (string, bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	side, ok := l.tokens[code][token]
+	return side, ok
 }
 
 func (l *Lobby) Codes() []string {
