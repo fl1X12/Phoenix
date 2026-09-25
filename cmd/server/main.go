@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync/atomic"
 
@@ -23,9 +24,16 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	addr := flag.String("addr", ":8080", "listen address")
+	addr := flag.String("addr", "", "listen address (default $PORT or :8080)")
 	worldDir := flag.String("world", "worlds/default", "directory holding world.json and maps/")
 	flag.Parse()
+	if *addr == "" {
+		if p := os.Getenv("PORT"); p != "" { // Render, Railway, Fly all set PORT
+			*addr = ":" + p
+		} else {
+			*addr = ":8080"
+		}
+	}
 
 	var current atomic.Pointer[world.World]
 	w, err := world.Load(*worldDir)
