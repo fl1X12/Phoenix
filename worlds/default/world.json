@@ -5,7 +5,6 @@
 
   "codes": {
     "code_A1": { "side": "A", "order": ["red", "green", "blue", "yellow"] },
-    "code_A2": { "side": "A", "order": ["yellow", "blue", "green", "red"] },
     "code_B1": { "side": "B", "order": ["blue", "red", "yellow", "green"] }
   },
 
@@ -96,9 +95,7 @@
 
         { "id": "door_B4",   "type": "button_door", "x": 6,  "y": 8,  "key": "door_B4" },
         { "id": "key_B",     "type": "key",         "x": 14, "y": 14, "key": "key_B" },
-        { "id": "keydoor_B", "type": "key_door",    "x": 6,  "y": 19, "key": "keydoor_B.open" },
-        { "id": "keypad_B5", "type": "keypad",      "x": 22, "y": 21, "key": "door_B5", "interact": "submit" },
-        { "id": "door_B5",   "type": "code_door",   "x": 25, "y": 22, "key": "door_B5" },
+        { "id": "door_B5",   "type": "key_door",    "x": 25, "y": 22, "key": "door_B5.open" },
 
         { "id": "final_B", "type": "final_button", "x": 33, "y": 15, "key": "final_B" },
         { "id": "exit_B",  "type": "exit_door",    "x": 37, "y": 22, "key": "exit_open" }
@@ -120,7 +117,6 @@
     "door_B1": false,
     "door_B2": false,
     "door_B4": false,
-    "door_B5": false,
     "lasers_A1": true,
     "lasers_A2": true,
     "lasers_B1": true,
@@ -144,7 +140,7 @@
     "light_B_off.on": false,
     "wall_A1.broken": false,
     "keydoor_A.open": false,
-    "keydoor_B.open": false,
+    "door_B5.open": false,
     "final_A": false,
     "final_B": false
   },
@@ -158,7 +154,6 @@
 
     { "on": "keypad_A2:submit", "requires": { "code": "code_B1" }, "do": [ { "set": { "door_A2": true } }, { "fx": "door_open", "to": "A" } ] },
     { "on": "keypad_B2:submit", "requires": { "code": "code_A1" }, "do": [ { "set": { "door_B2": true } }, { "fx": "door_open", "to": "B" } ] },
-    { "on": "keypad_B5:submit", "requires": { "code": "code_A2" }, "do": [ { "set": { "door_B5": true } }, { "fx": "door_open", "to": "B" } ] },
 
     { "on": "light_A_srv:toggle", "do": [ { "toggle": "B.server.lights" }, { "fx": "lights_hum", "to": "B" } ] },
     { "on": "light_B_rec:toggle", "do": [ { "toggle": "A.records.lights" }, { "fx": "lights_hum", "to": "A" } ] },
@@ -178,7 +173,7 @@
 
     { "on": "wall_A1:use_bomb",  "requires": { "holding": "bomb" }, "do": [ { "set": { "wall_A1.broken": true } },  { "consume": "bomb" }, { "fx": "explosion", "to": "all" } ] },
     { "on": "keydoor_A:use_key", "requires": { "holding": "key" },  "do": [ { "set": { "keydoor_A.open": true } }, { "consume": "key" } ] },
-    { "on": "keydoor_B:use_key", "requires": { "holding": "key" },  "do": [ { "set": { "keydoor_B.open": true } }, { "consume": "key" } ] },
+    { "on": "door_B5:use_key", "requires": { "holding": "key" },  "do": [ { "set": { "door_B5.open": true } }, { "consume": "key" } ] },
 
     { "on": "final_A:press", "do": [ { "set": { "final_A": true } }, { "fx": "latch", "to": "all" } ] },
     { "on": "final_B:press", "do": [ { "set": { "final_B": true } }, { "fx": "latch", "to": "all" } ] }
