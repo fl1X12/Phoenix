@@ -2,7 +2,7 @@
  "tileSize": 32,
  "camera": {
   "radius": 8,
-  "darkRadius": 2.4
+  "darkRadius": 2
  },
  "debuff": {
   "seconds": 15,
