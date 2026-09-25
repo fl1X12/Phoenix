@@ -24,6 +24,9 @@ type Lobby struct {
 
 	// OnRoomClosed, if set, runs after a room is removed. Used to tear down voice peers.
 	OnRoomClosed func(code string)
+	// VoiceURL, if set, is handed to every room and sent to clients in "assigned"
+	// (the public wss URL of a separate voice relay, e.g. wss://voice.example.com/voice).
+	VoiceURL string
 }
 
 func NewLobby(w func() *world.World) *Lobby {
@@ -44,6 +47,7 @@ func (l *Lobby) Get(code string, create bool) *Room {
 	}
 	r := NewRoom(code, l.world(), l.remove)
 	r.onToken = l.addToken
+	r.VoiceURL = l.VoiceURL
 	l.rooms[code] = r
 	go r.Run()
 	return r
@@ -60,6 +64,7 @@ func (l *Lobby) Create() *Room {
 		}
 		r := NewRoom(code, l.world(), l.remove)
 		r.onToken = l.addToken
+		r.VoiceURL = l.VoiceURL
 		l.rooms[code] = r
 		go r.Run()
 		return r

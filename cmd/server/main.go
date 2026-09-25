@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -31,6 +32,7 @@ func main() {
 	addr := flag.String("addr", "", "listen address (default $PORT or :8080)")
 	worldDir := flag.String("world", "worlds", "a world directory (holds world.json), or a directory of world directories; each new room picks one at random")
 	voiceLoop := flag.Bool("voice-loop", false, "echo a player's voice frames back to them while their partner has no voice connection (solo testing)")
+	mode := flag.String("mode", envOr("MODE", "all"), "all: game + voice in one process; game: game only, clients are sent VOICE_URL for voice; voice: voice relay only, tokens checked against GAME_URL")
 	flag.Parse()
 	if *addr == "" {
 		if p := os.Getenv("PORT"); p != "" { // Render, Railway, Fly all set PORT
@@ -40,8 +42,36 @@ func main() {
 		}
 	}
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(rw http.ResponseWriter, _ *http.Request) { rw.Write([]byte("ok")) })
+	hub := voice.New(*voiceLoop)
+	started := time.Now()
+
+	switch *mode {
+	case "all", "game":
+		runGame(mux, hub, *mode == "all", *worldDir, started)
+	case "voice":
+		runVoice(mux, hub, started)
+	default:
+		log.Fatalf("unknown -mode %q", *mode)
+	}
+
+	log.Printf("mode %s, listening on %s", *mode, *addr)
+	log.Fatal(http.ListenAndServe(*addr, mux))
+}
+
+func envOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+// runGame mounts the game server. withVoice also mounts the in-process voice relay; otherwise
+// VOICE_URL is sent to clients and INTERNAL_SECRET guards the token check the voice box calls.
+func runGame(mux *http.ServeMux, hub *voice.Hub, withVoice bool, worldDir string, started time.Time) {
 	var current atomic.Pointer[[]*world.World]
-	worlds, err := world.LoadAll(*worldDir)
+	worlds, err := world.LoadAll(worldDir)
 	if err != nil {
 		log.Fatalf("load worlds: %v", err)
 	}
@@ -55,13 +85,32 @@ func main() {
 		return ws[rand.IntN(len(ws))]
 	}
 	lobby := game.NewLobby(pick)
-	hub := voice.New(*voiceLoop)
-	lobby.OnRoomClosed = hub.CloseRoom
+	if withVoice {
+		lobby.OnRoomClosed = hub.CloseRoom
+		mux.HandleFunc("GET /voice", func(rw http.ResponseWriter, req *http.Request) { serveVoice(lobby.SideForToken, hub, rw, req) })
+	} else {
+		lobby.VoiceURL = os.Getenv("VOICE_URL")
+		if lobby.VoiceURL == "" {
+			log.Printf("warning: -mode game without VOICE_URL; clients will have no voice")
+		}
+		// The voice box asks here whether a token belongs to a room.
+		secret := os.Getenv("INTERNAL_SECRET")
+		mux.HandleFunc("GET /internal/voice-auth", func(rw http.ResponseWriter, req *http.Request) {
+			if secret != "" && req.Header.Get("X-Internal-Secret") != secret {
+				http.Error(rw, "forbidden", http.StatusForbidden)
+				return
+			}
+			code := strings.ToUpper(req.URL.Query().Get("code"))
+			side, ok := lobby.SideForToken(code, req.URL.Query().Get("token"))
+			if !ok {
+				http.Error(rw, "unknown room or token", http.StatusUnauthorized)
+				return
+			}
+			writeJSON(rw, map[string]string{"side": side})
+		})
+	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(rw http.ResponseWriter, _ *http.Request) { rw.Write([]byte("ok")) })
 	// Keep-alive target for an external cron (Render free tier sleeps after 15 min idle).
-	started := time.Now()
 	mux.HandleFunc("GET /ping", func(rw http.ResponseWriter, req *http.Request) {
 		ip := req.Header.Get("X-Forwarded-For") // Render's proxy sets this; RemoteAddr is the proxy
 		if ip == "" {
@@ -77,7 +126,6 @@ func main() {
 		})
 	})
 	mux.HandleFunc("GET /ws", func(rw http.ResponseWriter, req *http.Request) { serveWS(lobby, rw, req) })
-	mux.HandleFunc("GET /voice", func(rw http.ResponseWriter, req *http.Request) { serveVoice(lobby, hub, rw, req) })
 
 	// Debug endpoints.
 	mux.HandleFunc("GET /debug/rooms", func(rw http.ResponseWriter, _ *http.Request) {
@@ -136,7 +184,7 @@ func main() {
 		writeJSON(rw, names)
 	})
 	mux.HandleFunc("POST /debug/reload", func(rw http.ResponseWriter, _ *http.Request) {
-		nw, err := world.LoadAll(*worldDir)
+		nw, err := world.LoadAll(worldDir)
 		if err != nil {
 			http.Error(rw, err.Error(), 400)
 			return
@@ -144,9 +192,48 @@ func main() {
 		current.Store(&nw)
 		fmt.Fprintf(rw, "reloaded %d world(s); applies to new rooms\n", len(nw))
 	})
+}
 
-	log.Printf("listening on %s", *addr)
-	log.Fatal(http.ListenAndServe(*addr, mux))
+// runVoice mounts only the voice relay. Tokens are verified against the game server at GAME_URL.
+func runVoice(mux *http.ServeMux, hub *voice.Hub, started time.Time) {
+	gameURL := strings.TrimRight(os.Getenv("GAME_URL"), "/")
+	if gameURL == "" {
+		log.Fatal("-mode voice needs GAME_URL (e.g. https://phoenix.onrender.com)")
+	}
+	secret := os.Getenv("INTERNAL_SECRET")
+	client := &http.Client{Timeout: 5 * time.Second}
+	auth := func(code, token string) (string, bool) {
+		req, _ := http.NewRequest("GET", gameURL+"/internal/voice-auth?code="+url.QueryEscape(code)+"&token="+url.QueryEscape(token), nil)
+		if secret != "" {
+			req.Header.Set("X-Internal-Secret", secret)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("voice-auth: %v", err)
+			return "", false
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return "", false
+		}
+		var d struct {
+			Side string `json:"side"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&d) != nil || d.Side == "" {
+			return "", false
+		}
+		return d.Side, true
+	}
+	mux.HandleFunc("GET /voice", func(rw http.ResponseWriter, req *http.Request) { serveVoice(auth, hub, rw, req) })
+	mux.HandleFunc("GET /ping", func(rw http.ResponseWriter, req *http.Request) {
+		log.Printf("ping (%s), uptime %s, voice %v", req.UserAgent(), time.Since(started).Round(time.Second), hub.Stats())
+		writeJSON(rw, map[string]any{
+			"ok":     true,
+			"uptime": time.Since(started).Round(time.Second).String(),
+			"voice":  hub.Stats(),
+			"time":   time.Now().UTC().Format(time.RFC3339),
+		})
+	})
 }
 
 // serveWS upgrades the connection, waits for the first "create" or "join", then hands the socket to the room.
@@ -198,16 +285,16 @@ func serveWS(lobby *game.Lobby, rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// serveVoice authenticates ?code=&token= against the lobby, upgrades, and hands the socket to the voice hub.
+// serveVoice authenticates ?code=&token= with auth, upgrades, and hands the socket to the voice hub.
 // Auth happens before the upgrade so a bad request gets a plain HTTP status.
-func serveVoice(lobby *game.Lobby, hub *voice.Hub, rw http.ResponseWriter, req *http.Request) {
+func serveVoice(auth func(code, token string) (string, bool), hub *voice.Hub, rw http.ResponseWriter, req *http.Request) {
 	code := strings.ToUpper(req.URL.Query().Get("code"))
 	token := req.URL.Query().Get("token")
 	if !game.ValidCode(code) || token == "" {
 		http.Error(rw, "code and token required", http.StatusBadRequest)
 		return
 	}
-	side, ok := lobby.SideForToken(code, token)
+	side, ok := auth(code, token)
 	if !ok {
 		http.Error(rw, "unknown room or token", http.StatusUnauthorized)
 		return

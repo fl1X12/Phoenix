@@ -60,7 +60,9 @@ type Room struct {
 	done    bool
 	onClose func(code string)
 	onToken func(code, token, side string) // called when a fresh player gets a token; may be nil
-	pending []pendingFx                    // cues queued during handle, sent after the patch
+	// VoiceURL, when set, is sent in "assigned" so the client dials a separate voice relay.
+	VoiceURL string
+	pending  []pendingFx // cues queued during handle, sent after the patch
 }
 
 type pendingFx struct {
@@ -228,7 +230,7 @@ func (r *Room) join(c *ws.Conn, token string) {
 					p.gone = nil
 				}
 				p.conn = c
-				c.Send("assigned", map[string]string{"code": r.Code, "side": p.Side, "token": p.Token})
+				c.Send("assigned", r.assigned(p))
 				if r.started {
 					r.sendWorld(p)
 					r.tellOther(p, "partner", map[string]bool{"connected": true})
@@ -258,7 +260,7 @@ func (r *Room) join(c *ws.Conn, token string) {
 		if r.onToken != nil {
 			r.onToken(r.Code, p.Token, s)
 		}
-		c.Send("assigned", map[string]string{"code": r.Code, "side": s, "token": p.Token})
+		c.Send("assigned", r.assigned(p))
 		log.Printf("room %s: side %s joined", r.Code, s)
 		if len(r.players) == len(r.world.Sides) {
 			r.started = true
@@ -462,6 +464,14 @@ func (r *Room) GiveItem(side, item string, give bool) error {
 		}
 	})
 	return err
+}
+
+func (r *Room) assigned(p *Player) map[string]string {
+	m := map[string]string{"code": r.Code, "side": p.Side, "token": p.Token}
+	if r.VoiceURL != "" {
+		m["voice"] = r.VoiceURL
+	}
+	return m
 }
 
 func errMsg(reason string) map[string]string { return map[string]string{"reason": reason} }
