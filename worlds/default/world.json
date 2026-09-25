@@ -50,7 +50,7 @@
         { "id": "keydoor_A", "type": "key_door",      "x": 27, "y": 20, "key": "keydoor_A.open" },
 
         { "id": "final_A", "type": "final_button", "x": 33, "y": 20, "key": "final_A" },
-        { "id": "exit_A",  "type": "exit_door",    "x": 37, "y": 22, "key": "exit_open" }
+        { "id": "exit_A",  "type": "exit_door",    "x": 39, "y": 21, "key": "exit_open" }
       ],
       "boss": {
         "room": "corridor",
