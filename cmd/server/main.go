@@ -191,6 +191,7 @@ func runGame(mux *http.ServeMux, hub *voice.Hub, withVoice bool, worldDir string
 	})
 	// Public world list for the create-room picker. The client shows a picker only when there are two or more.
 	mux.HandleFunc("GET /worlds", func(rw http.ResponseWriter, _ *http.Request) {
+		rw.Header().Set("Access-Control-Allow-Origin", "*") // WebGL builds fetch this cross-origin
 		type entry struct {
 			ID          string `json:"id"`
 			Title       string `json:"title"`
