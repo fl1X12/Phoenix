@@ -49,6 +49,7 @@ Plain WebSockets, JSON, one envelope for every message: `{ "type": "...", "data"
 | C→S | `interact` | `{ id, action, value? }` | Using an object; `value` carries a keypad code |
 | C→S | `enter` | `{ portalId }` | Walking through the exit door |
 | C→S | `room` | `{ id }` | Crossing a room boundary |
+| C→S | `log` | `{ msg }` | Client diagnostics; server prints `client CODE/SIDE: msg` (voice counters, mic info) |
 | C→S | `leave` | `{}` | Leave for good: ends the game for both players and frees the room (also valid while waiting) |
 | S→C | `assigned` | `{ code, side, token, voice? }` | Side dealt at random; show the code to your partner, keep the token for reconnects. `voice` = URL of a separate voice relay when one runs, else use `/voice` on the game host |
 | S→C | `waiting` | `{}` | Partner not yet connected |

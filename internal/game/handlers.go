@@ -36,6 +36,17 @@ func (r *Room) message(p *Player, env ws.Envelope) {
 			return
 		}
 		r.enter(p, d.PortalID)
+	case "log":
+		// Client-side diagnostics (voice counters, mic info) so phones need no adb.
+		var d struct {
+			Msg string `json:"msg"`
+		}
+		if decode(env.Data, &d) && d.Msg != "" {
+			if len(d.Msg) > 512 {
+				d.Msg = d.Msg[:512]
+			}
+			log.Printf("client %s/%s: %s", r.Code, p.Side, d.Msg)
+		}
 	case "room":
 		var d struct {
 			ID string `json:"id"`
