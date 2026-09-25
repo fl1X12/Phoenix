@@ -32,8 +32,14 @@ func (w *World) Validate() []string {
 			e("side %s: spawn %v outside map", side, s.Spawn)
 		}
 		for _, r := range s.Rooms {
-			if !inside(r.X, r.Y) || !inside(r.X+r.W-1, r.Y+r.H-1) || r.W <= 0 || r.H <= 0 {
-				e("side %s: room %q rectangle outside map", side, r.ID)
+			if len(r.Rects) == 0 {
+				e("side %s: room %q has no rectangles", side, r.ID)
+			}
+			for _, rc := range r.Rects {
+				x, y, rw, rh := rc[0], rc[1], rc[2], rc[3]
+				if rw <= 0 || rh <= 0 || !inside(x, y) || !inside(x+rw-1, y+rh-1) {
+					e("side %s: room %q rectangle %v outside map (%dx%d)", side, r.ID, rc, wdt, h)
+				}
 			}
 			readers[r.Lights] = true
 			readers[r.Flooded] = true
@@ -53,14 +59,18 @@ func (w *World) Validate() []string {
 			if _, ok := ObjectActions[o.Type]; !ok {
 				e("object %q: unknown type %q", o.ID, o.Type)
 			}
-			if !inside(o.X, o.Y) {
-				e("object %q at (%d,%d) outside map", o.ID, o.X, o.Y)
+			if !inside(o.X, o.Y) || !inside(o.X+o.W-1, o.Y+o.H-1) {
+				e("object %q at (%d,%d) size %dx%d outside map", o.ID, o.X, o.Y, o.W, o.H)
 			}
 			if o.Key == "" && o.Type != "boss" {
 				e("object %q (%s) needs a key", o.ID, o.Type)
 			}
 			readers[o.Key] = true
-			counts[o.Type]++
+			if IsFinalButton(o.Type) {
+				counts["final"]++
+			} else {
+				counts[o.Type]++
+			}
 		}
 		for _, it := range ItemTypes {
 			if counts[it] > 1 {
@@ -73,8 +83,8 @@ func (w *World) Validate() []string {
 		if counts["key"] != counts["key_door"] {
 			e("side %s: %d key(s) but %d key door(s)", side, counts["key"], counts["key_door"])
 		}
-		if counts["latch_button"] != 1 {
-			e("side %s: needs exactly 1 latch_button (final button), has %d", side, counts["latch_button"])
+		if counts["final"] != 1 {
+			e("side %s: needs exactly 1 final_button, has %d", side, counts["final"])
 		}
 		if counts["exit_door"] != 1 {
 			e("side %s: needs exactly 1 exit_door, has %d", side, counts["exit_door"])

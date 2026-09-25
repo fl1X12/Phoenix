@@ -107,6 +107,7 @@ func (r *Room) reset() {
 				r.state[o.Key] = randomCode()
 			case "bomb", "key":
 				r.state[o.Key] = "home"
+			case "boss":
 			default:
 				if _, ok := r.state[o.Key]; !ok && o.Key != "" {
 					r.state[o.Key] = false
@@ -136,11 +137,16 @@ func (r *Room) Do(fn func(*Room)) {
 // --- goroutine ---
 
 func (r *Room) Run() {
-	log.Printf("room %s: started", r.Code)
+	log.Printf("room %s: started with world %q", r.Code, r.world.Name)
 	for ev := range r.events {
 		before := maps.Clone(r.state)
 		r.handle(ev)
 		r.recomputeDerived()
+		for k, effect := range r.world.DerivedFx {
+			if !reflect.DeepEqual(before[k], r.state[k]) {
+				r.fx("all", nil, effect, k)
+			}
+		}
 		r.sendChanges(before)
 		r.flushFx()
 		if r.done {
@@ -279,8 +285,9 @@ func (r *Room) sendWorld(p *Player) {
 			colors[o.ID] = c
 		}
 	}
-	p.conn.Send("world", map[string]any{
+	msg := map[string]any{
 		"side":     p.Side,
+		"name":     s.Name,
 		"tileSize": r.world.TileSize,
 		"camera":   r.world.Camera,
 		"tiles":    s.Tiles,
@@ -289,7 +296,14 @@ func (r *Room) sendWorld(p *Player) {
 		"objects":  s.Objects,
 		"colors":   colors,
 		"state":    r.visibleState(p.Side),
-	})
+	}
+	if len(s.Boss) > 0 {
+		msg["boss"] = s.Boss
+	}
+	if len(r.world.Debuff) > 0 {
+		msg["debuff"] = r.world.Debuff
+	}
+	p.conn.Send("world", msg)
 }
 
 func (r *Room) visibleState(side string) map[string]any {
@@ -376,6 +390,7 @@ func (r *Room) flushFx() {
 
 type Snapshot struct {
 	Code    string            `json:"code"`
+	World   string            `json:"world"`
 	Started bool              `json:"started"`
 	Players map[string]string `json:"players"` // side -> "connected" | "disconnected"
 	State   map[string]any    `json:"state"`
@@ -384,7 +399,7 @@ type Snapshot struct {
 func (r *Room) Snapshot() Snapshot {
 	var s Snapshot
 	r.Do(func(rm *Room) {
-		s = Snapshot{Code: rm.Code, Started: rm.started, Players: map[string]string{}, State: maps.Clone(rm.state)}
+		s = Snapshot{Code: rm.Code, World: rm.world.Name, Started: rm.started, Players: map[string]string{}, State: maps.Clone(rm.state)}
 		for side, p := range rm.players {
 			if p.conn != nil {
 				s.Players[side] = "connected"

@@ -173,54 +173,73 @@ func TestFullPlaythrough(t *testing.T) {
 	if _, ok := a.state["exit_open"]; !ok {
 		t.Fatal("A cannot see global exit_open")
 	}
-	if a.state["A.lobby.lights"] != true || b.state["A.lobby.lights"] != true {
-		t.Fatal("lights should default on")
+	// initial overrides the room default (lights on).
+	if b.state["B.server.lights"] != false {
+		t.Fatalf("B.server.lights should start off, got %v", b.state["B.server.lights"])
 	}
 
-	// Button door: A presses, B gets patch + fx, A gets nothing.
+	// Button door: A presses, B gets patch, A only sees its own button key.
 	a.send("interact", map[string]string{"id": "button_A1", "action": "press"})
 	if p := b.expect("patch"); p["door_B1"] != true {
 		t.Fatalf("door_B1 patch: %v", p)
 	}
-	b.expect("fx")
-	a.expectNone("patch")
+	if p := a.expect("patch"); p["button_A1.on"] != true || p["door_B1"] != nil {
+		t.Fatalf("A patch: %v", p)
+	}
 
 	// Interacting with an object on the other side is rejected.
 	a.send("interact", map[string]string{"id": "button_B1", "action": "press"})
 	a.expect("error")
 
+	// Light switch toggles the other side's room key.
+	b.send("interact", map[string]string{"id": "light_B_server", "action": "toggle"})
+	if p := b.expect("patch"); p["B.server.lights"] != true {
+		t.Fatalf("lights patch: %v", p)
+	}
+
 	// Code door: wrong code buzzes actor only; right code opens.
 	codeA := a.state["code_A1"].(string)
-	b.send("interact", map[string]string{"id": "keypad_B1", "action": "submit", "value": "0000"})
+	b.send("interact", map[string]string{"id": "keypad_B2", "action": "submit", "value": "0000"})
 	b.expectFx("buzz")
 	b.expectNone("patch")
-	b.send("interact", map[string]string{"id": "keypad_B1", "action": "submit", "value": codeA})
+	b.send("interact", map[string]string{"id": "keypad_B2", "action": "submit", "value": codeA})
 	if p := b.expect("patch"); p["door_B2"] != true {
 		t.Fatalf("door_B2: %v", p)
 	}
 
-	// Key door needs the key.
-	a.send("interact", map[string]string{"id": "door_A3", "action": "use_key"})
-	a.expectFx("missing_key")
-	a.send("interact", map[string]string{"id": "key_A", "action": "pickup"})
-	p := a.expect("patch")
-	if p["key_A"] != "held" || len(p["inv_A"].([]any)) != 1 {
+	// Key door needs the key (B side).
+	b.send("interact", map[string]string{"id": "keydoor_B", "action": "use_key"})
+	b.expectFx("missing_key")
+	b.send("interact", map[string]string{"id": "key_B", "action": "pickup"})
+	p := b.expect("patch")
+	if p["key_B"] != "held" || len(p["inv_B"].([]any)) != 1 {
 		t.Fatalf("pickup patch: %v", p)
 	}
-	a.send("interact", map[string]string{"id": "door_A3", "action": "use_key"})
-	p = a.expect("patch")
-	if p["door_A3"] != true || p["key_A"] != "used" || len(p["inv_A"].([]any)) != 0 {
+	b.send("interact", map[string]string{"id": "keydoor_B", "action": "use_key"})
+	p = b.expect("patch")
+	if p["keydoor_B.open"] != true || p["key_B"] != "used" || len(p["inv_B"].([]any)) != 0 {
 		t.Fatalf("use_key patch: %v", p)
 	}
 
-	// Bomb wall on B.
-	b.send("interact", map[string]string{"id": "bomb_B", "action": "pickup"})
-	b.expect("patch")
-	b.send("interact", map[string]string{"id": "wall_B1", "action": "use_bomb"})
-	if p := b.expect("patch"); p["wall_B1"] != true || p["bomb_B"] != "used" {
+	// Bomb wall on A; B hears the explosion.
+	a.send("interact", map[string]string{"id": "bomb_A", "action": "pickup"})
+	a.expect("patch")
+	a.send("interact", map[string]string{"id": "wall_A1", "action": "use_bomb"})
+	if p := a.expect("patch"); p["wall_A1.broken"] != true || p["bomb_A"] != "used" {
 		t.Fatalf("bomb patch: %v", p)
 	}
-	a.expectFx("explosion")
+	b.expectFx("explosion")
+
+	// Latched switch: second toggle is ignored.
+	a.send("interact", map[string]string{"id": "sprinkler_A", "action": "toggle"})
+	if p := a.expect("patch"); p["sprinkler_A.on"] != true {
+		t.Fatalf("sprinkler: %v", p)
+	}
+	if p := b.expect("patch"); p["fire_B1"] != false {
+		t.Fatalf("fire: %v", p)
+	}
+	a.send("interact", map[string]string{"id": "sprinkler_A", "action": "toggle"})
+	a.expectNone("patch")
 
 	// Exit is locked until both finals.
 	a.send("enter", map[string]string{"portalId": "exit_A"})
@@ -234,6 +253,9 @@ func TestFullPlaythrough(t *testing.T) {
 	if p := b.expect("patch"); p["exit_open"] != true || p["final_B"] != true {
 		t.Fatalf("B exit_open: %v", p)
 	}
+	// derivedFx: both hear the exit open, after the patch.
+	a.expectFx("exit_open")
+	b.expectFx("exit_open")
 
 	b.send("enter", map[string]string{"portalId": "exit_B"})
 	a.expect("game_complete")

@@ -5,29 +5,77 @@ import "encoding/json"
 
 // Camera radii, in tiles.
 type Camera struct {
-	Radius     int `json:"radius"`
-	DarkRadius int `json:"darkRadius"`
+	Radius     float64 `json:"radius"`
+	DarkRadius float64 `json:"darkRadius"`
 }
 
-// Room is a rectangle in tile coordinates. An L-shaped room is two entries with the same ID.
+// Rect is x, y, w, h in tile coordinates.
+type Rect [4]int
+
+// Room is one or more rectangles sharing an id (an L-shape is two rects).
+// Authored either as {x,y,w,h} or {rects:[[x,y,w,h],...]}. Extra fields (name, theme) pass through to the client.
 type Room struct {
 	ID      string `json:"id"`
-	X       int    `json:"x"`
-	Y       int    `json:"y"`
-	W       int    `json:"w"`
-	H       int    `json:"h"`
+	Rects   []Rect `json:"rects"`
 	Lights  string `json:"lights,omitempty"`  // state key; bool
 	Flooded string `json:"flooded,omitempty"` // state key; bool
+	Props   map[string]any
+}
+
+func (r *Room) UnmarshalJSON(b []byte) error {
+	var all map[string]any
+	if err := json.Unmarshal(b, &all); err != nil {
+		return err
+	}
+	var p struct {
+		ID      string `json:"id"`
+		Rects   []Rect `json:"rects"`
+		X, Y    int
+		W, H    int
+		Lights  string `json:"lights"`
+		Flooded string `json:"flooded"`
+	}
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	r.ID, r.Rects, r.Lights, r.Flooded = p.ID, p.Rects, p.Lights, p.Flooded
+	if len(r.Rects) == 0 && (p.W > 0 || p.H > 0) {
+		r.Rects = []Rect{{p.X, p.Y, p.W, p.H}}
+	}
+	for _, k := range []string{"id", "rects", "x", "y", "w", "h", "lights", "flooded"} {
+		delete(all, k)
+	}
+	if len(all) > 0 {
+		r.Props = all
+	}
+	return nil
+}
+
+func (r Room) MarshalJSON() ([]byte, error) {
+	m := map[string]any{"id": r.ID, "rects": r.Rects}
+	if r.Lights != "" {
+		m["lights"] = r.Lights
+	}
+	if r.Flooded != "" {
+		m["flooded"] = r.Flooded
+	}
+	for k, v := range r.Props {
+		m[k] = v
+	}
+	return json.Marshal(m)
 }
 
 // Object is anything on the floor that can change or be used. It reads exactly one state key.
+// W and H default to 1; lasers and fire may span several tiles.
 type Object struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
 	X    int    `json:"x"`
 	Y    int    `json:"y"`
+	W    int    `json:"w,omitempty"`
+	H    int    `json:"h,omitempty"`
 	Key  string `json:"key,omitempty"`
-	// Props carries type-specific extras (e.g. patrol path for the boss). Passed to the client untouched.
+	// Props carries type-specific extras (label, latch, code, patrol path). Passed to the client untouched.
 	Props map[string]any `json:"-"`
 }
 
@@ -41,10 +89,16 @@ func (o *Object) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &all); err != nil {
 		return err
 	}
-	for _, k := range []string{"id", "type", "x", "y", "key"} {
+	for _, k := range []string{"id", "type", "x", "y", "w", "h", "key"} {
 		delete(all, k)
 	}
 	*o = Object(p)
+	if o.W == 0 {
+		o.W = 1
+	}
+	if o.H == 0 {
+		o.H = 1
+	}
 	if len(all) > 0 {
 		o.Props = all
 	}
@@ -52,7 +106,7 @@ func (o *Object) UnmarshalJSON(b []byte) error {
 }
 
 func (o Object) MarshalJSON() ([]byte, error) {
-	m := map[string]any{"id": o.ID, "type": o.Type, "x": o.X, "y": o.Y}
+	m := map[string]any{"id": o.ID, "type": o.Type, "x": o.X, "y": o.Y, "w": o.W, "h": o.H}
 	if o.Key != "" {
 		m["key"] = o.Key
 	}
@@ -62,13 +116,21 @@ func (o Object) MarshalJSON() ([]byte, error) {
 	return json.Marshal(m)
 }
 
+// Latch reports whether the object is one-way: once its key is true, further interactions are ignored.
+func (o *Object) Latch() bool {
+	v, _ := o.Props["latch"].(bool)
+	return v || o.Type == "final_button" || o.Type == "latch_button"
+}
+
 // Side is one player's half of the floor.
 type Side struct {
-	Map     string   `json:"map"`
-	Spawn   [2]int   `json:"spawn"`
-	Rooms   []Room   `json:"rooms"`
-	Objects []Object `json:"objects"`
-	Tiles   []string `json:"tiles,omitempty"` // filled from Map at load
+	Name    string          `json:"name,omitempty"`
+	Map     string          `json:"map"`
+	Spawn   [2]int          `json:"spawn"`
+	Rooms   []Room          `json:"rooms"`
+	Objects []Object        `json:"objects"`
+	Boss    json.RawMessage `json:"boss,omitempty"`  // client-simulated; passed through
+	Tiles   []string        `json:"tiles,omitempty"` // filled from Map at load
 }
 
 // Requires gates a rule on the acting player's situation.
@@ -96,12 +158,15 @@ type Rule struct {
 
 // World is the whole level file.
 type World struct {
-	TileSize int               `json:"tileSize"`
-	Camera   Camera            `json:"camera"`
-	Sides    map[string]*Side  `json:"sides"`
-	Initial  map[string]any    `json:"initial"`
-	Derived  map[string]string `json:"derived"` // key -> boolean expression over keys
-	Rules    []Rule            `json:"rules"`
+	Name      string            `json:"-"` // directory name, set at load
+	TileSize  int               `json:"tileSize"`
+	Camera    Camera            `json:"camera"`
+	Debuff    json.RawMessage   `json:"debuff,omitempty"` // boss debuff tuning; passed through
+	Sides     map[string]*Side  `json:"sides"`
+	Initial   map[string]any    `json:"initial"`
+	Derived   map[string]string `json:"derived"`   // key -> boolean expression over keys
+	DerivedFx map[string]string `json:"derivedFx"` // derived key -> fx effect sent to all when it changes
+	Rules     []Rule            `json:"rules"`
 
 	// Derived at load.
 	Visibility map[string][]string `json:"-"` // state key -> sides that receive it
@@ -113,14 +178,18 @@ type World struct {
 // Actions not listed here are ignored by the server.
 var ObjectActions = map[string][]string{
 	"button":        {"press"},
-	"latch_button":  {"press"},
-	"light_switch":  {"press"},
-	"laser_switch":  {"press"},
+	"switch":        {"toggle", "press"},
+	"valve":         {"toggle", "press"},
+	"light_switch":  {"toggle", "press"},
+	"laser_switch":  {"toggle", "press"},
+	"final_button":  {"press"},
+	"latch_button":  {"press"}, // alias of final_button
 	"button_door":   {},
 	"code_door":     {},
 	"key_door":      {"use_key"},
 	"exit_door":     {},
-	"laser":         {},
+	"lasers":        {},
+	"laser":         {}, // alias of lasers
 	"fire":          {},
 	"bombable_wall": {"use_bomb"},
 	"code_panel":    {},
@@ -144,3 +213,5 @@ func IsItemType(t string) bool {
 	}
 	return false
 }
+
+func IsFinalButton(t string) bool { return t == "final_button" || t == "latch_button" }

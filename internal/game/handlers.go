@@ -73,6 +73,13 @@ func (r *Room) interact(p *Player, id, action, value string) {
 		return
 	}
 
+	// Latched objects (final buttons, one-way switches) ignore further presses once set.
+	if obj.Latch() {
+		if v, _ := r.state[obj.Key].(bool); v {
+			return
+		}
+	}
+
 	// Rules.
 	on := id + ":" + action
 	fired := 0

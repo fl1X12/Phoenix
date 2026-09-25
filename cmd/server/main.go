@@ -4,7 +4,9 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"strings"
@@ -26,7 +28,7 @@ var upgrader = websocket.Upgrader{
 
 func main() {
 	addr := flag.String("addr", "", "listen address (default $PORT or :8080)")
-	worldDir := flag.String("world", "worlds/default", "directory holding world.json and maps/")
+	worldDir := flag.String("world", "worlds", "a world directory (holds world.json), or a directory of world directories; each new room picks one at random")
 	flag.Parse()
 	if *addr == "" {
 		if p := os.Getenv("PORT"); p != "" { // Render, Railway, Fly all set PORT
@@ -36,15 +38,21 @@ func main() {
 		}
 	}
 
-	var current atomic.Pointer[world.World]
-	w, err := world.Load(*worldDir)
+	var current atomic.Pointer[[]*world.World]
+	worlds, err := world.LoadAll(*worldDir)
 	if err != nil {
-		log.Fatalf("load world: %v", err)
+		log.Fatalf("load worlds: %v", err)
 	}
-	current.Store(w)
-	log.Printf("world loaded from %s: %d sides, %d rules, %d keys", *worldDir, len(w.Sides), len(w.Rules), len(w.Visibility))
+	current.Store(&worlds)
+	for _, w := range worlds {
+		log.Printf("world %q loaded: %d sides, %d rules, %d keys", w.Name, len(w.Sides), len(w.Rules), len(w.Visibility))
+	}
 
-	lobby := game.NewLobby(current.Load)
+	pick := func() *world.World {
+		ws := *current.Load()
+		return ws[rand.IntN(len(ws))]
+	}
+	lobby := game.NewLobby(pick)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(rw http.ResponseWriter, _ *http.Request) { rw.Write([]byte("ok")) })
@@ -114,14 +122,21 @@ func main() {
 		}
 		writeJSON(rw, r.Snapshot().State)
 	})
+	mux.HandleFunc("GET /debug/worlds", func(rw http.ResponseWriter, _ *http.Request) {
+		var names []string
+		for _, w := range *current.Load() {
+			names = append(names, w.Name)
+		}
+		writeJSON(rw, names)
+	})
 	mux.HandleFunc("POST /debug/reload", func(rw http.ResponseWriter, _ *http.Request) {
-		nw, err := world.Load(*worldDir)
+		nw, err := world.LoadAll(*worldDir)
 		if err != nil {
 			http.Error(rw, err.Error(), 400)
 			return
 		}
-		current.Store(nw)
-		rw.Write([]byte("reloaded; applies to new rooms\n"))
+		current.Store(&nw)
+		fmt.Fprintf(rw, "reloaded %d world(s); applies to new rooms\n", len(nw))
 	})
 
 	log.Printf("listening on %s", *addr)

@@ -34,12 +34,63 @@ func Load(dir string) (*World, error) {
 			return nil, fmt.Errorf("side %s: %w", name, err)
 		}
 		s.Tiles = tiles
+		for i := range s.Objects {
+			o := &s.Objects[i]
+			// A code panel may name its key as "code" instead of "key".
+			if o.Type == "code_panel" && o.Key == "" {
+				if c, ok := o.Props["code"].(string); ok {
+					o.Key = c
+				}
+			}
+		}
 	}
 	if errs := w.Validate(); len(errs) > 0 {
 		return nil, fmt.Errorf("world validation failed:\n  - %s", strings.Join(errs, "\n  - "))
 	}
 	w.derive()
+	w.Name = filepath.Base(filepath.Clean(dir))
 	return &w, nil
+}
+
+// LoadAll loads every world under dir. If dir itself holds a world.json it is the only world;
+// otherwise each subdirectory with a world.json is loaded. Every world must validate.
+func LoadAll(dir string) ([]*World, error) {
+	if _, err := os.Stat(filepath.Join(dir, "world.json")); err == nil {
+		w, err := Load(dir)
+		if err != nil {
+			return nil, err
+		}
+		return []*World{w}, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var out []*World
+	var errs []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		sub := filepath.Join(dir, e.Name())
+		if _, err := os.Stat(filepath.Join(sub, "world.json")); err != nil {
+			continue
+		}
+		w, err := Load(sub)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", e.Name(), err))
+			continue
+		}
+		out = append(out, w)
+	}
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("%d world(s) failed to load:\n%s", len(errs), strings.Join(errs, "\n"))
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no worlds found under %s", dir)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
 }
 
 func loadMap(path string) ([]string, error) {

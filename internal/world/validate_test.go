@@ -22,11 +22,18 @@ func TestDefaultWorldLoads(t *testing.T) {
 	if got := w.Visibility["code_A1"]; len(got) != 1 || got[0] != "A" {
 		t.Fatalf("code_A1 visibility %v", got)
 	}
-	if w.Colors["button_A1"] != "B" || w.Colors["lever_B1"] != "both" || w.Colors["key_A"] != "A" {
+	// button_A1 sets its own key (A) and door_B1 (B) -> both.
+	if w.Colors["button_A1"] != "both" || w.Colors["light_B_server"] != "B" || w.Colors["key_B"] != "B" {
 		t.Fatalf("colors %v", w.Colors)
 	}
 	if _, ok := w.Colors["door_A1"]; ok {
 		t.Fatal("door should have no color")
+	}
+	if _, o := w.SideOf("lasers_A1"); o == nil || o.H != 7 {
+		t.Fatalf("lasers_A1 should be 1x7: %+v", o)
+	}
+	if _, o := w.SideOf("panel_A1"); o == nil || o.Key != "code_A1" {
+		t.Fatalf("code panel key not normalised: %+v", o)
 	}
 }
 
@@ -50,32 +57,49 @@ func mutate(t *testing.T, fn func(m map[string]any)) error {
 }
 
 func TestValidationCatches(t *testing.T) {
-	rules := func(m map[string]any) []any { return m["rules"].([]any) }
+	rule := func(m map[string]any, on string) map[string]any {
+		for _, r := range m["rules"].([]any) {
+			if rm := r.(map[string]any); rm["on"] == on {
+				return rm
+			}
+		}
+		t.Fatalf("no rule %s", on)
+		return nil
+	}
+	dropRule := func(m map[string]any, on string) {
+		var keep []any
+		for _, r := range m["rules"].([]any) {
+			if r.(map[string]any)["on"] != on {
+				keep = append(keep, r)
+			}
+		}
+		m["rules"] = keep
+	}
 	cases := map[string]struct {
 		fn   func(m map[string]any)
 		want string
 	}{
 		"typo key": {func(m map[string]any) {
-			rules(m)[0].(map[string]any)["do"] = []any{map[string]any{"toggle": "door_b1"}}
+			rule(m, "button_A1:press")["do"] = []any{map[string]any{"toggle": "door_b1"}}
 		}, "nothing reads"},
 		"fire never cleared": {func(m map[string]any) {
-			m["rules"] = append(rules(m)[:7:7], rules(m)[8:]...) // drop ext_B1 rule
+			dropRule(m, "sprinkler_A:toggle")
 		}, "never cleared"},
+		"flood never drained": {func(m map[string]any) {
+			dropRule(m, "valve_B:toggle")
+		}, "never drained"},
 		"keypad on same side as panel": {func(m map[string]any) {
-			rules(m)[4].(map[string]any)["requires"] = map[string]any{"code": "code_B1"}
+			rule(m, "keypad_B2:submit")["requires"] = map[string]any{"code": "code_B1"}
 		}, "same side"},
 		"unknown action": {func(m map[string]any) {
-			rules(m)[0].(map[string]any)["on"] = "door_A1:press"
+			rule(m, "button_A1:press")["on"] = "door_A1:press"
 		}, "does not accept"},
-		"ragged map": {func(m map[string]any) {
-			m["sides"].(map[string]any)["A"].(map[string]any)["map"] = "maps/side_a.txt"
-			// write a ragged map instead
-		}, ""},
+		"room outside map": {func(m map[string]any) {
+			rooms := m["sides"].(map[string]any)["A"].(map[string]any)["rooms"].([]any)
+			rooms[0].(map[string]any)["rects"] = []any{[]any{30.0, 1.0, 20.0, 5.0}}
+		}, "outside map"},
 	}
 	for name, tc := range cases {
-		if tc.want == "" {
-			continue
-		}
 		err := mutate(t, tc.fn)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: want error containing %q, got %v", name, tc.want, err)
