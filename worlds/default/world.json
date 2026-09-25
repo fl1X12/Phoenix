@@ -98,7 +98,7 @@
         { "id": "door_B5",   "type": "key_door",    "x": 25, "y": 22, "key": "door_B5.open" },
 
         { "id": "final_B", "type": "final_button", "x": 33, "y": 15, "key": "final_B" },
-        { "id": "exit_B",  "type": "exit_door",    "x": 37, "y": 22, "key": "exit_open" }
+        { "id": "exit_B",  "type": "exit_door",    "x": 39, "y": 22, "key": "exit_open" }
       ],
       "boss": {
         "room": "cafeteria",
