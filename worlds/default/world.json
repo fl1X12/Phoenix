@@ -1,0 +1,75 @@
+{
+  "tileSize": 32,
+  "camera": { "radius": 8, "darkRadius": 2 },
+  "sides": {
+    "A": {
+      "map": "maps/side_a.txt",
+      "spawn": [2, 2],
+      "rooms": [
+        { "id": "lobby",   "x": 1, "y": 1, "w": 10, "h": 5, "lights": "A.lobby.lights" },
+        { "id": "office",  "x": 12, "y": 1, "w": 13, "h": 5 },
+        { "id": "archive", "x": 1, "y": 7, "w": 10, "h": 4, "flooded": "A.archive.flooded" },
+        { "id": "vault",   "x": 12, "y": 7, "w": 13, "h": 4 }
+      ],
+      "objects": [
+        { "id": "button_A1",  "type": "button",        "x": 2,  "y": 4,  "key": "button_A1" },
+        { "id": "door_A1",    "type": "button_door",   "x": 11, "y": 3,  "key": "door_A1" },
+        { "id": "panel_A1",   "type": "code_panel",    "x": 14, "y": 2,  "key": "code_A1" },
+        { "id": "keypad_A1",  "type": "keypad",        "x": 20, "y": 2,  "key": "door_A2" },
+        { "id": "door_A2",    "type": "code_door",     "x": 6,  "y": 6,  "key": "door_A2" },
+        { "id": "lasers_A1",  "type": "laser",         "x": 6,  "y": 8,  "key": "lasers_A1" },
+        { "id": "fire_A1",    "type": "fire",          "x": 11, "y": 9,  "key": "fire_A1" },
+        { "id": "key_A",      "type": "key",           "x": 3,  "y": 9,  "key": "key_A" },
+        { "id": "door_A3",    "type": "key_door",      "x": 18, "y": 9,  "key": "door_A3" },
+        { "id": "final_A",    "type": "latch_button",  "x": 22, "y": 9,  "key": "final_A" },
+        { "id": "exit_A",     "type": "exit_door",     "x": 24, "y": 9,  "key": "exit_open" }
+      ]
+    },
+    "B": {
+      "map": "maps/side_b.txt",
+      "spawn": [2, 2],
+      "rooms": [
+        { "id": "server",  "x": 1, "y": 1, "w": 12, "h": 5, "lights": "B.server.lights" },
+        { "id": "hall",    "x": 14, "y": 1, "w": 11, "h": 5 },
+        { "id": "storage", "x": 1, "y": 7, "w": 12, "h": 4 },
+        { "id": "boiler",  "x": 14, "y": 7, "w": 11, "h": 4 }
+      ],
+      "objects": [
+        { "id": "switch_B1",  "type": "light_switch",  "x": 2,  "y": 4,  "key": "A.lobby.lights" },
+        { "id": "button_B1",  "type": "button",        "x": 5,  "y": 2,  "key": "button_B1" },
+        { "id": "door_B1",    "type": "button_door",   "x": 13, "y": 3,  "key": "door_B1" },
+        { "id": "keypad_B1",  "type": "keypad",        "x": 16, "y": 2,  "key": "door_B2" },
+        { "id": "panel_B1",   "type": "code_panel",    "x": 22, "y": 2,  "key": "code_B1" },
+        { "id": "door_B2",    "type": "code_door",     "x": 7,  "y": 6,  "key": "door_B2" },
+        { "id": "lever_B1",   "type": "laser_switch",  "x": 3,  "y": 8,  "key": "lasers_A1" },
+        { "id": "valve_B1",   "type": "button",        "x": 5,  "y": 8,  "key": "valve_B1" },
+        { "id": "bomb_B",     "type": "bomb",          "x": 8,  "y": 9,  "key": "bomb_B" },
+        { "id": "wall_B1",    "type": "bombable_wall", "x": 13, "y": 9,  "key": "wall_B1" },
+        { "id": "ext_B1",     "type": "button",        "x": 17, "y": 8,  "key": "ext_B1" },
+        { "id": "final_B",    "type": "latch_button",  "x": 22, "y": 9,  "key": "final_B" },
+        { "id": "exit_B",     "type": "exit_door",     "x": 24, "y": 9,  "key": "exit_open" },
+        { "id": "boss_B",     "type": "boss",          "x": 20, "y": 3,  "chaseRadius": 4, "patrol": [[16,2],[23,2],[23,4],[16,4]] }
+      ]
+    }
+  },
+  "initial": {
+    "A.archive.flooded": true,
+    "lasers_A1": true,
+    "fire_A1": true
+  },
+  "derived": { "exit_open": "final_A && final_B" },
+  "rules": [
+    { "on": "button_A1:press",  "do": [ { "toggle": "door_B1" }, { "fx": "door_clunk", "to": "B" } ] },
+    { "on": "button_B1:press",  "do": [ { "toggle": "door_A1" }, { "fx": "door_clunk", "to": "A" } ] },
+    { "on": "switch_B1:press",  "do": [ { "toggle": "A.lobby.lights" }, { "fx": "lights", "to": "A" } ] },
+    { "on": "keypad_A1:submit", "requires": { "code": "code_B1" }, "do": [ { "set": { "door_A2": true } }, { "fx": "unlock", "to": "A" } ] },
+    { "on": "keypad_B1:submit", "requires": { "code": "code_A1" }, "do": [ { "set": { "door_B2": true } }, { "fx": "unlock", "to": "B" } ] },
+    { "on": "lever_B1:press",   "do": [ { "toggle": "lasers_A1" }, { "fx": "laser_hum", "to": "A" } ] },
+    { "on": "valve_B1:press",   "do": [ { "set": { "A.archive.flooded": false } }, { "fx": "drain", "to": "all" } ] },
+    { "on": "ext_B1:press",     "do": [ { "set": { "fire_A1": false } }, { "fx": "extinguish", "to": "A" } ] },
+    { "on": "door_A3:use_key",  "requires": { "holding": "key" }, "do": [ { "set": { "door_A3": true } }, { "consume": "key" }, { "fx": "unlock", "to": "A" } ] },
+    { "on": "wall_B1:use_bomb", "requires": { "holding": "bomb" }, "do": [ { "set": { "wall_B1": true } }, { "consume": "bomb" }, { "fx": "explosion", "to": "all" } ] },
+    { "on": "final_A:press",    "do": [ { "set": { "final_A": true } }, { "fx": "latch", "to": "all" } ] },
+    { "on": "final_B:press",    "do": [ { "set": { "final_B": true } }, { "fx": "latch", "to": "all" } ] }
+  ]
+}
