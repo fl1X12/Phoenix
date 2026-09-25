@@ -80,11 +80,19 @@ func (r *Room) interact(p *Player, id, action, value string) {
 		}
 	}
 
-	// Rules.
+	// Rules. "press" and "toggle" are synonyms: the client sends press for every
+	// switch-like object, levels are authored with either.
 	on := id + ":" + action
+	alt := ""
+	switch action {
+	case "press":
+		alt = id + ":toggle"
+	case "toggle":
+		alt = id + ":press"
+	}
 	fired := 0
 	for _, rule := range r.world.Rules {
-		if rule.On != on {
+		if rule.On != on && rule.On != alt {
 			continue
 		}
 		if ok, why := r.requires(p, rule.Requires, value); !ok {

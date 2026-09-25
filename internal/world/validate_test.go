@@ -8,16 +8,29 @@ import (
 	"testing"
 )
 
+// The shipped level must load; content assertions are on the testdata fixtures.
 func TestDefaultWorldLoads(t *testing.T) {
 	w, err := Load("../../worlds/default")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := w.Visibility["door_B1"]; len(got) != 1 || got[0] != "B" {
-		t.Fatalf("door_B1 visibility %v", got)
-	}
 	if got := w.Visibility["exit_open"]; len(got) != 2 {
 		t.Fatalf("exit_open visibility %v", got)
+	}
+	for id, c := range w.Colors {
+		if c != "A" && c != "B" && c != "both" {
+			t.Fatalf("object %s has colour %q", id, c)
+		}
+	}
+}
+
+func TestFixtureWorld(t *testing.T) {
+	w, err := Load("testdata/colour")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := w.Visibility["door_B1"]; len(got) != 1 || got[0] != "B" {
+		t.Fatalf("door_B1 visibility %v", got)
 	}
 	if got := w.Visibility["panel_A_red"]; len(got) != 1 || got[0] != "A" {
 		t.Fatalf("panel_A_red visibility %v", got)
@@ -40,7 +53,7 @@ func TestDefaultWorldLoads(t *testing.T) {
 // mutate loads the default world.json, applies fn, writes it to a temp dir with the maps, and loads it.
 func mutate(t *testing.T, fn func(m map[string]any)) error {
 	t.Helper()
-	return mutateDir(t, "../../worlds/default", fn)
+	return mutateDir(t, "testdata/colour", fn)
 }
 
 func mutateDir(t *testing.T, src string, fn func(m map[string]any)) error {

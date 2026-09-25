@@ -104,8 +104,12 @@ func (c *client) expectNone(typ string) {
 	}
 }
 
+// fixture is a test-owned copy of the level with every mechanic wired. The real level under
+// worlds/default changes often; TestDefaultLevel covers it generically.
+const fixture = "../../internal/world/testdata/colour"
+
 func setup(t *testing.T) (*client, *client, *game.Lobby) {
-	return setupWorld(t, "../../worlds/default")
+	return setupWorld(t, fixture)
 }
 
 func setupWorld(t *testing.T, dir string) (*client, *client, *game.Lobby) {
@@ -195,10 +199,14 @@ func TestFullPlaythrough(t *testing.T) {
 	a.send("interact", map[string]string{"id": "button_B1", "action": "press"})
 	a.expect("error")
 
-	// Light switch toggles the other side's room key.
-	b.send("interact", map[string]string{"id": "light_B_server", "action": "toggle"})
+	// Light switch rule is authored on :toggle; the client sends press. Both must fire.
+	b.send("interact", map[string]string{"id": "light_B_server", "action": "press"})
 	if p := b.expect("patch"); p["B.server.lights"] != true {
-		t.Fatalf("lights patch: %v", p)
+		t.Fatalf("lights patch (press): %v", p)
+	}
+	b.send("interact", map[string]string{"id": "light_B_server", "action": "toggle"})
+	if p := b.expect("patch"); p["B.server.lights"] != false {
+		t.Fatalf("lights patch (toggle): %v", p)
 	}
 
 	// Code door: wrong code buzzes actor only; right code (A's panels in keypad_B2's order) opens.
@@ -359,5 +367,20 @@ func TestColourCodes(t *testing.T) {
 	b.send("interact", map[string]string{"id": "keypad_B5", "action": "submit", "value": answer2})
 	if p := b.expect("patch"); p["door_B5"] != true {
 		t.Fatalf("door_B5: %v", p)
+	}
+}
+
+// TestDefaultLevel checks the shipped level generically: it loads, both players get a world,
+// and a switch press reaches the partner. Content-specific assertions live in the fixture tests.
+func TestDefaultLevel(t *testing.T) {
+	a, b, _ := setupWorld(t, "../../worlds/default")
+	if _, ok := a.state["exit_open"]; !ok {
+		t.Fatal("A cannot see exit_open")
+	}
+	if _, ok := b.state["exit_open"]; !ok {
+		t.Fatal("B cannot see exit_open")
+	}
+	if a.state["exit_open"] != false {
+		t.Fatal("exit should start closed")
 	}
 }
