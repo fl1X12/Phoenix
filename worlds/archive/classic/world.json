@@ -39,7 +39,7 @@
         { "id": "lasers_A1",   "type": "lasers",       "x": 21, "y": 9,  "w": 1, "h": 7, "key": "lasers_A1" },
         { "id": "lasers_A2",   "type": "lasers",       "x": 15, "y": 16, "w": 1, "h": 1, "key": "lasers_A2" },
         { "id": "laserlvr_A",  "type": "laser_switch", "x": 19, "y": 14, "key": "laserlvr_A.on", "label": "Laser lever" },
-        { "id": "sprinkler_A", "type": "valve",        "x": 25, "y": 10, "key": "sprinkler_A.on", "latch": true, "label": "Sprinklers" },
+        { "id": "sprinkler_A", "type": "switch",        "x": 25, "y": 10, "key": "sprinkler_A.on", "latch": true, "label": "Sprinklers" },
         { "id": "valve_A",     "type": "valve",        "x": 24, "y": 14, "key": "valve_A.on",     "latch": true, "label": "Drain valve" },
         { "id": "breaker_A",   "type": "switch",       "x": 36, "y": 13, "key": "breaker_A.on",   "latch": true, "label": "Breaker" },
 
