@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -47,6 +48,16 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(rw http.ResponseWriter, _ *http.Request) { rw.Write([]byte("ok")) })
+	// Keep-alive target for an external cron (Render free tier sleeps after 15 min idle).
+	started := time.Now()
+	mux.HandleFunc("GET /ping", func(rw http.ResponseWriter, _ *http.Request) {
+		writeJSON(rw, map[string]any{
+			"ok":     true,
+			"uptime": time.Since(started).Round(time.Second).String(),
+			"rooms":  len(lobby.Codes()),
+			"time":   time.Now().UTC().Format(time.RFC3339),
+		})
+	})
 	mux.HandleFunc("GET /ws", func(rw http.ResponseWriter, req *http.Request) { serveWS(lobby, rw, req) })
 
 	// Debug endpoints.
