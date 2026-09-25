@@ -11,7 +11,9 @@ import (
 
 // message dispatches one client envelope. Invalid messages are answered with an error and otherwise ignored.
 func (r *Room) message(p *Player, env ws.Envelope) {
-	if !r.started {
+	// log and room are harmless at any time, including while waiting for a partner. Answering
+	// them with an error made the client drop the socket ten seconds into every new room.
+	if !r.started && env.Type != "log" && env.Type != "room" {
 		p.conn.Send("error", errMsg("game not started"))
 		return
 	}

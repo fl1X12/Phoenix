@@ -443,3 +443,41 @@ func TestLeaveWhileWaiting(t *testing.T) {
 	c.waitClosed()
 	waitRoomGone(t, lobby, "SOLO")
 }
+
+// A client may send log/room before the partner arrives without being kicked.
+func TestLogWhileWaiting(t *testing.T) {
+	w, err := world.Load(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lobby := game.NewLobby(func() *world.World { return w })
+	up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		sock, _ := up.Upgrade(rw, req, nil)
+		c := ws.New(sock)
+		room := lobby.Get("WAIT", true)
+		room.Join(c, "")
+		for {
+			select {
+			case env := <-c.Inbound:
+				room.Message(c, env)
+			case <-c.Closed:
+				room.Leave(c)
+				return
+			}
+		}
+	}))
+	defer srv.Close()
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := newClient(t, conn)
+	a.expect("assigned")
+	a.expect("waiting")
+	a.send("log", map[string]string{"msg": "[voice] on tx 0"})
+	a.send("room", map[string]string{"id": "lobby"})
+	a.expectNone("error")
+	a.send("interact", map[string]string{"id": "button_A1", "action": "press"})
+	a.expect("error") // real game messages are still refused before start
+}
