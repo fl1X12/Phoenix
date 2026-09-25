@@ -44,10 +44,38 @@ func Load(dir string) (*World, error) {
 			}
 		}
 	}
+	w.panels = map[string]string{}
+	for side, s := range w.Sides {
+		for _, o := range s.Objects {
+			if o.Type == "code_panel" && o.PanelColor() != "" {
+				w.panels[side+"/"+o.PanelColor()] = o.Key
+			}
+		}
+	}
 	if errs := w.Validate(); len(errs) > 0 {
 		return nil, fmt.Errorf("world validation failed:\n  - %s", strings.Join(errs, "\n  - "))
 	}
 	w.derive()
+	// Keypads learn their colour sequence from the code their submit rule requires,
+	// so the client shows the order without it being authored twice.
+	for _, s := range w.Sides {
+		for i := range s.Objects {
+			o := &s.Objects[i]
+			if o.Type != "keypad" {
+				continue
+			}
+			for _, r := range w.Rules {
+				if r.On == o.ID+":submit" && r.Requires != nil {
+					if spec, ok := w.Codes[r.Requires.Code]; ok {
+						if o.Props == nil {
+							o.Props = map[string]any{}
+						}
+						o.Props["order"] = spec.Order
+					}
+				}
+			}
+		}
+	}
 	w.Name = filepath.Base(filepath.Clean(dir))
 	return &w, nil
 }

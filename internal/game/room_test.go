@@ -105,8 +105,12 @@ func (c *client) expectNone(typ string) {
 }
 
 func setup(t *testing.T) (*client, *client, *game.Lobby) {
+	return setupWorld(t, "../../worlds/default")
+}
+
+func setupWorld(t *testing.T, dir string) (*client, *client, *game.Lobby) {
 	t.Helper()
-	w, err := world.Load("../../worlds/default")
+	w, err := world.Load(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,4 +307,52 @@ func redial(t *testing.T, ref *client) *websocket.Conn {
 		t.Fatal(err)
 	}
 	return c
+}
+
+func TestColourCodes(t *testing.T) {
+	a, b, _ := setupWorld(t, "../../internal/world/testdata/colour")
+
+	// A sees four single digits, nobody sees a composed code.
+	for _, c := range []string{"red", "green", "blue", "yellow"} {
+		d, _ := a.state["panel_A_"+c].(string)
+		if len(d) != 1 || d[0] < '0' || d[0] > '9' {
+			t.Fatalf("panel_A_%s = %q", c, d)
+		}
+		if _, ok := b.state["panel_A_"+c]; ok {
+			t.Fatalf("B can see panel_A_%s", c)
+		}
+	}
+	for _, k := range []string{"code_A1", "code_A2", "code_B1"} {
+		if _, ok := a.state[k]; ok {
+			t.Fatalf("A can see %s", k)
+		}
+		if _, ok := b.state[k]; ok {
+			t.Fatalf("B can see %s", k)
+		}
+	}
+
+	// keypad_B2 requires code_A1 = A's panels in red, green, blue, yellow.
+	answer := a.state["panel_A_red"].(string) + a.state["panel_A_green"].(string) +
+		a.state["panel_A_blue"].(string) + a.state["panel_A_yellow"].(string)
+	wrong := answer[1:] + answer[:1]
+	if wrong == answer {
+		wrong = "0000"
+		if answer == wrong {
+			wrong = "1111"
+		}
+	}
+	b.send("interact", map[string]string{"id": "keypad_B2", "action": "submit", "value": wrong})
+	b.expectFx("buzz")
+	b.send("interact", map[string]string{"id": "keypad_B2", "action": "submit", "value": answer})
+	if p := b.expect("patch"); p["door_B2"] != true {
+		t.Fatalf("door_B2: %v", p)
+	}
+
+	// keypad_B5 reads the same panels in a different order (yellow, blue, green, red).
+	answer2 := a.state["panel_A_yellow"].(string) + a.state["panel_A_blue"].(string) +
+		a.state["panel_A_green"].(string) + a.state["panel_A_red"].(string)
+	b.send("interact", map[string]string{"id": "keypad_B5", "action": "submit", "value": answer2})
+	if p := b.expect("patch"); p["door_B5"] != true {
+		t.Fatalf("door_B5: %v", p)
+	}
 }

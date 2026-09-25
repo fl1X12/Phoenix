@@ -72,6 +72,25 @@ func (w *World) Validate() []string {
 				counts[o.Type]++
 			}
 		}
+		// Colour panels: none, or exactly one per colour.
+		colours := map[string]int{}
+		for _, o := range s.Objects {
+			if o.Type == "code_panel" && o.PanelColor() != "" {
+				colours[o.PanelColor()]++
+			}
+		}
+		if len(colours) > 0 {
+			for _, c := range PanelColors {
+				if colours[c] != 1 {
+					e("side %s: needs exactly one %s code_panel, has %d", side, c, colours[c])
+				}
+			}
+			for c := range colours {
+				if !contains(PanelColors, c) {
+					e("side %s: unknown panel colour %q", side, c)
+				}
+			}
+		}
 		for _, it := range ItemTypes {
 			if counts[it] > 1 {
 				e("side %s has %d %s objects, max 1", side, counts[it], it)
@@ -122,9 +141,22 @@ func (w *World) Validate() []string {
 				e("rule #%d: requires.holding %q is not an item type", i, r.Requires.Holding)
 			}
 			if r.Requires.Code != "" {
-				panel := w.objectByKey(r.Requires.Code, "code_panel")
-				if panel == nil {
-					e("rule #%d: requires.code %q is not the key of any code_panel", i, r.Requires.Code)
+				if spec, ok := w.Codes[r.Requires.Code]; ok {
+					if _, real := w.Sides[spec.Side]; !real {
+						e("codes.%s: side %q does not exist", r.Requires.Code, spec.Side)
+					} else if spec.Side == objSide[id] {
+						e("rule #%d: keypad %q reads panels on its own side %q", i, id, spec.Side)
+					}
+					if len(spec.Order) == 0 {
+						e("codes.%s: order is empty", r.Requires.Code)
+					}
+					for _, c := range spec.Order {
+						if w.panels[spec.Side+"/"+c] == "" {
+							e("codes.%s: no %s code_panel on side %s", r.Requires.Code, c, spec.Side)
+						}
+					}
+				} else if panel := w.objectByKey(r.Requires.Code, "code_panel"); panel == nil {
+					e("rule #%d: requires.code %q is neither a codes entry nor the key of any code_panel", i, r.Requires.Code)
 				} else if objSide[panel.ID] == objSide[id] {
 					e("rule #%d: keypad %q and code panel %q are on the same side", i, id, panel.ID)
 				}

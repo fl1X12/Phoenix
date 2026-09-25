@@ -57,12 +57,20 @@ Room codes are 1–16 chars of `[A-Za-z0-9_-]`, upper-cased by the server. First
 | `key_door` | `use_key` | bool | Rule with `requires.holding: key`, `consume: key` |
 | `bombable_wall` | `use_bomb` | bool | Rule with `requires.holding: bomb`, `consume: bomb` |
 | `keypad` | `submit` | bool | Key = the door it opens. Rule needs `requires.code`. Wrong code → `fx buzz` to actor |
-| `code_panel` | — | string | `"code": "code_A1"` names the key. 4-digit code generated per room, visible only to its side |
+| `code_panel` | — | string | With `"color"`: one random digit per room, four panels per side (red/green/blue/yellow). Legacy form without colour: `"code": "code_A1"` names the key and holds a whole 4-digit code |
 | `bomb`, `key` | `pickup` | `home`/`held`/`used` | Built in; updates `inv_<side>` |
 | `exit_door` | — (use `enter`) | bool | Key is `exit_open`. Closed → `fx locked` |
 
 Unknown fields on objects, rooms (`name`, `theme`), plus side `name`/`boss` and top-level `debuff`, pass through
 to the client in `world` untouched. Rooms use `"rects": [[x,y,w,h], ...]`; several rects make an L-shape.
+
+**Colour codes** (see `docs/code-panels.md`): a `codes` block composes each keypad answer from the partner
+side's panel digits read in a colour order. The keypad object is sent with that `order` so the client can show
+the swatches; the composed answer key is never sent to anyone.
+
+```json
+"codes": { "code_A1": { "side": "A", "order": ["red", "green", "blue", "yellow"] } }
+```
 
 Built-in fx sent to the actor on failure: `buzz` (wrong code), `missing_key` / `missing_bomb`, `locked`.
 `derivedFx: { "exit_open": "exit_open" }` sends an fx to both players whenever that derived key changes.

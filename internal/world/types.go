@@ -156,22 +156,42 @@ type Rule struct {
 	Do       []Action  `json:"do"`
 }
 
+// CodeSpec composes a keypad answer from one side's colour panels read in Order.
+type CodeSpec struct {
+	Side  string   `json:"side"`  // wing holding the panels
+	Order []string `json:"order"` // colour sequence the keypad displays
+}
+
+// Panel colours; each side has either none or exactly one code_panel per colour.
+var PanelColors = []string{"red", "green", "blue", "yellow"}
+
 // World is the whole level file.
 type World struct {
-	Name      string            `json:"-"` // directory name, set at load
-	TileSize  int               `json:"tileSize"`
-	Camera    Camera            `json:"camera"`
-	Debuff    json.RawMessage   `json:"debuff,omitempty"` // boss debuff tuning; passed through
-	Sides     map[string]*Side  `json:"sides"`
-	Initial   map[string]any    `json:"initial"`
-	Derived   map[string]string `json:"derived"`   // key -> boolean expression over keys
-	DerivedFx map[string]string `json:"derivedFx"` // derived key -> fx effect sent to all when it changes
-	Rules     []Rule            `json:"rules"`
+	Name      string              `json:"-"` // directory name, set at load
+	TileSize  int                 `json:"tileSize"`
+	Camera    Camera              `json:"camera"`
+	Debuff    json.RawMessage     `json:"debuff,omitempty"` // boss debuff tuning; passed through
+	Sides     map[string]*Side    `json:"sides"`
+	Initial   map[string]any      `json:"initial"`
+	Derived   map[string]string   `json:"derived"`         // key -> boolean expression over keys
+	DerivedFx map[string]string   `json:"derivedFx"`       // derived key -> fx effect sent to all when it changes
+	Codes     map[string]CodeSpec `json:"codes,omitempty"` // composed keypad answers
+	Rules     []Rule              `json:"rules"`
 
 	// Derived at load.
 	Visibility map[string][]string `json:"-"` // state key -> sides that receive it
 	Colors     map[string]string   `json:"-"` // object id -> "A", "B" or "both"
 	DerivedOrd []string            `json:"-"` // fixed evaluation order for Derived
+	panels     map[string]string   // "side/colour" -> panel state key
+}
+
+// PanelKey returns the state key of the code_panel with that colour on that side, or "".
+func (w *World) PanelKey(side, colour string) string { return w.panels[side+"/"+colour] }
+
+// PanelColor returns a code_panel's colour prop, or "".
+func (o *Object) PanelColor() string {
+	c, _ := o.Props["color"].(string)
+	return c
 }
 
 // Object types and the interact actions each accepts.

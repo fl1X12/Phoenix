@@ -10,6 +10,7 @@ import (
 	"maps"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/fl1X12/phoenix/internal/world"
@@ -104,7 +105,11 @@ func (r *Room) reset() {
 		for _, o := range s.Objects {
 			switch o.Type {
 			case "code_panel":
-				r.state[o.Key] = randomCode()
+				if o.PanelColor() != "" {
+					r.state[o.Key] = randomDigit()
+				} else {
+					r.state[o.Key] = randomCode() // legacy: one panel holds the whole code
+				}
 			case "bomb", "key":
 				r.state[o.Key] = "home"
 			case "boss":
@@ -115,6 +120,16 @@ func (r *Room) reset() {
 			}
 		}
 		r.state["inv_"+side] = []string{}
+	}
+	// Composed codes: the partner's panel digits read in the keypad's colour order.
+	// No object reads these keys, so they are never sent to anyone.
+	for id, spec := range r.world.Codes {
+		var sb strings.Builder
+		for _, colour := range spec.Order {
+			d, _ := r.state[r.world.PanelKey(spec.Side, colour)].(string)
+			sb.WriteString(d)
+		}
+		r.state[id] = sb.String()
 	}
 	r.recomputeDerived()
 }
@@ -450,6 +465,12 @@ func newToken() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+func randomDigit() string {
+	b := make([]byte, 1)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%d", b[0]%10)
 }
 
 func randomCode() string {
