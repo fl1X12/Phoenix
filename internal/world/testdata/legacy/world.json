@@ -154,6 +154,13 @@
      "key": "door_A1"
     },
     {
+     "id": "panel_A1",
+     "type": "code_panel",
+     "x": 15,
+     "y": 1,
+     "code": "code_A1"
+    },
+    {
      "id": "keypad_A2",
      "type": "keypad",
      "x": 17,
@@ -217,6 +224,13 @@
      "key": "wall_A1.broken"
     },
     {
+     "id": "panel_A2",
+     "type": "code_panel",
+     "x": 5,
+     "y": 23,
+     "code": "code_A2"
+    },
+    {
      "id": "lasers_A2",
      "type": "lasers",
      "x": 15,
@@ -238,42 +252,6 @@
      "x": 39,
      "y": 21,
      "key": "exit_open"
-    },
-    {
-     "id": "panel_A_red",
-     "type": "code_panel",
-     "x": 3,
-     "y": 1,
-     "key": "panel_A_red",
-     "color": "red",
-     "digit": 8
-    },
-    {
-     "id": "panel_A_green",
-     "type": "code_panel",
-     "x": 13,
-     "y": 1,
-     "key": "panel_A_green",
-     "color": "green",
-     "digit": 2
-    },
-    {
-     "id": "panel_A_blue",
-     "type": "code_panel",
-     "x": 22,
-     "y": 1,
-     "key": "panel_A_blue",
-     "color": "blue",
-     "digit": 4
-    },
-    {
-     "id": "panel_A_yellow",
-     "type": "code_panel",
-     "x": 14,
-     "y": 15,
-     "key": "panel_A_yellow",
-     "color": "yellow",
-     "digit": 7
     }
    ]
   },
@@ -394,6 +372,13 @@
      "key": "door_B1"
     },
     {
+     "id": "panel_B1",
+     "type": "code_panel",
+     "x": 18,
+     "y": 1,
+     "code": "code_B1"
+    },
+    {
      "id": "keypad_B2",
      "type": "keypad",
      "x": 24,
@@ -498,42 +483,6 @@
      "x": 39,
      "y": 20,
      "key": "exit_open"
-    },
-    {
-     "id": "panel_B_red",
-     "type": "code_panel",
-     "x": 3,
-     "y": 1,
-     "key": "panel_B_red",
-     "color": "red",
-     "digit": 3
-    },
-    {
-     "id": "panel_B_green",
-     "type": "code_panel",
-     "x": 9,
-     "y": 1,
-     "key": "panel_B_green",
-     "color": "green",
-     "digit": 5
-    },
-    {
-     "id": "panel_B_blue",
-     "type": "code_panel",
-     "x": 15,
-     "y": 1,
-     "key": "panel_B_blue",
-     "color": "blue",
-     "digit": 9
-    },
-    {
-     "id": "panel_B_yellow",
-     "type": "code_panel",
-     "x": 22,
-     "y": 1,
-     "key": "panel_B_yellow",
-     "color": "yellow",
-     "digit": 1
     }
    ],
    "boss": {
@@ -609,10 +558,6 @@
      "set": {
       "door_A2": true
      }
-    },
-    {
-     "fx": "door_open",
-     "to": "A"
     }
    ]
   },
@@ -626,10 +571,6 @@
      "set": {
       "door_B2": true
      }
-    },
-    {
-     "fx": "door_open",
-     "to": "B"
     }
    ]
   },
@@ -750,10 +691,6 @@
      "set": {
       "door_B5": true
      }
-    },
-    {
-     "fx": "door_open",
-     "to": "B"
     }
    ]
   },
@@ -777,34 +714,5 @@
     }
    ]
   }
- ],
- "codes": {
-  "code_A1": {
-   "side": "A",
-   "order": [
-    "red",
-    "green",
-    "blue",
-    "yellow"
-   ]
-  },
-  "code_A2": {
-   "side": "A",
-   "order": [
-    "yellow",
-    "blue",
-    "green",
-    "red"
-   ]
-  },
-  "code_B1": {
-   "side": "B",
-   "order": [
-    "blue",
-    "red",
-    "yellow",
-    "green"
-   ]
-  }
- }
+ ]
 }

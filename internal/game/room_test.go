@@ -171,8 +171,8 @@ func TestFullPlaythrough(t *testing.T) {
 	if _, ok := a.state["door_B1"]; ok {
 		t.Fatal("A can see door_B1")
 	}
-	if _, ok := b.state["code_A1"]; ok {
-		t.Fatal("B can see code_A1")
+	if _, ok := b.state["panel_A_red"]; ok {
+		t.Fatal("B can see panel_A_red")
 	}
 	if _, ok := a.state["exit_open"]; !ok {
 		t.Fatal("A cannot see global exit_open")
@@ -201,9 +201,14 @@ func TestFullPlaythrough(t *testing.T) {
 		t.Fatalf("lights patch: %v", p)
 	}
 
-	// Code door: wrong code buzzes actor only; right code opens.
-	codeA := a.state["code_A1"].(string)
-	b.send("interact", map[string]string{"id": "keypad_B2", "action": "submit", "value": "0000"})
+	// Code door: wrong code buzzes actor only; right code (A's panels in keypad_B2's order) opens.
+	codeA := a.state["panel_A_red"].(string) + a.state["panel_A_green"].(string) +
+		a.state["panel_A_blue"].(string) + a.state["panel_A_yellow"].(string)
+	wrongA := "0000"
+	if codeA == wrongA {
+		wrongA = "1111"
+	}
+	b.send("interact", map[string]string{"id": "keypad_B2", "action": "submit", "value": wrongA})
 	b.expectFx("buzz")
 	b.expectNone("patch")
 	b.send("interact", map[string]string{"id": "keypad_B2", "action": "submit", "value": codeA})
@@ -310,7 +315,7 @@ func redial(t *testing.T, ref *client) *websocket.Conn {
 }
 
 func TestColourCodes(t *testing.T) {
-	a, b, _ := setupWorld(t, "../../internal/world/testdata/colour")
+	a, b, _ := setup(t)
 
 	// A sees four single digits, nobody sees a composed code.
 	for _, c := range []string{"red", "green", "blue", "yellow"} {

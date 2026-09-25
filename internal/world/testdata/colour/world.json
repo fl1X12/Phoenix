@@ -609,6 +609,10 @@
      "set": {
       "door_A2": true
      }
+    },
+    {
+     "fx": "door_open",
+     "to": "A"
     }
    ]
   },
@@ -622,6 +626,10 @@
      "set": {
       "door_B2": true
      }
+    },
+    {
+     "fx": "door_open",
+     "to": "B"
     }
    ]
   },
@@ -742,6 +750,10 @@
      "set": {
       "door_B5": true
      }
+    },
+    {
+     "fx": "door_open",
+     "to": "B"
     }
    ]
   },

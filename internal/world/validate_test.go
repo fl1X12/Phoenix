@@ -19,8 +19,11 @@ func TestDefaultWorldLoads(t *testing.T) {
 	if got := w.Visibility["exit_open"]; len(got) != 2 {
 		t.Fatalf("exit_open visibility %v", got)
 	}
-	if got := w.Visibility["code_A1"]; len(got) != 1 || got[0] != "A" {
-		t.Fatalf("code_A1 visibility %v", got)
+	if got := w.Visibility["panel_A_red"]; len(got) != 1 || got[0] != "A" {
+		t.Fatalf("panel_A_red visibility %v", got)
+	}
+	if _, ok := w.Visibility["code_A1"]; ok {
+		t.Fatal("composed code_A1 must not be visible")
 	}
 	// button_A1 sets its own key (A) and door_B1 (B) -> both.
 	if w.Colors["button_A1"] != "both" || w.Colors["light_B_server"] != "B" || w.Colors["key_B"] != "B" {
@@ -31,9 +34,6 @@ func TestDefaultWorldLoads(t *testing.T) {
 	}
 	if _, o := w.SideOf("lasers_A1"); o == nil || o.H != 7 {
 		t.Fatalf("lasers_A1 should be 1x7: %+v", o)
-	}
-	if _, o := w.SideOf("panel_A1"); o == nil || o.Key != "code_A1" {
-		t.Fatalf("code panel key not normalised: %+v", o)
 	}
 }
 
@@ -93,9 +93,9 @@ func TestValidationCatches(t *testing.T) {
 		"flood never drained": {func(m map[string]any) {
 			dropRule(m, "valve_B:toggle")
 		}, "never drained"},
-		"keypad on same side as panel": {func(m map[string]any) {
+		"keypad reads own side": {func(m map[string]any) {
 			rule(m, "keypad_B2:submit")["requires"] = map[string]any{"code": "code_B1"}
-		}, "same side"},
+		}, "own side"},
 		"unknown action": {func(m map[string]any) {
 			rule(m, "button_A1:press")["on"] = "door_A1:press"
 		}, "does not accept"},
@@ -183,5 +183,33 @@ func TestColourPanels(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: want error containing %q, got %v", name, tc.want, err)
 		}
+	}
+}
+
+// The one-panel-per-code form still loads and validates.
+func TestLegacyCodePanels(t *testing.T) {
+	w, err := Load("testdata/legacy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := w.Visibility["code_A1"]; len(got) != 1 || got[0] != "A" {
+		t.Fatalf("legacy code_A1 visibility %v", got)
+	}
+	_, kp := w.SideOf("keypad_B2")
+	if _, ok := kp.Props["order"]; ok {
+		t.Fatal("legacy keypad should have no order")
+	}
+	if _, o := w.SideOf("panel_A1"); o == nil || o.Key != "code_A1" {
+		t.Fatalf("code panel key not normalised: %+v", o)
+	}
+	err = mutateDir(t, "testdata/legacy", func(m map[string]any) {
+		for _, r := range m["rules"].([]any) {
+			if rm := r.(map[string]any); rm["on"] == "keypad_B2:submit" {
+				rm["requires"] = map[string]any{"code": "code_B1"}
+			}
+		}
+	})
+	if err == nil || !strings.Contains(err.Error(), "same side") {
+		t.Fatalf("want same-side error, got %v", err)
 	}
 }
