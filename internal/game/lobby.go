@@ -1,6 +1,7 @@
 package game
 
 import (
+	"crypto/rand"
 	"regexp"
 	"sync"
 
@@ -9,7 +10,12 @@ import (
 
 var codeRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,16}$`)
 
-// Lobby maps room codes to running rooms. A join on an unknown code creates the room.
+// Generated codes avoid look-alikes (0/O, 1/I) so they survive being read out loud.
+const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+const codeLen = 4
+
+// Lobby maps room codes to running rooms. Create makes a room under a fresh code; Get looks one up
+// (or, for tests and debug tooling, creates it under a chosen code).
 type Lobby struct {
 	mu     sync.Mutex
 	rooms  map[string]*Room
@@ -41,6 +47,32 @@ func (l *Lobby) Get(code string, create bool) *Room {
 	l.rooms[code] = r
 	go r.Run()
 	return r
+}
+
+// Create starts a room under a new random code that no live room is using.
+func (l *Lobby) Create() *Room {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for {
+		code := newRoomCode()
+		if _, taken := l.rooms[code]; taken {
+			continue
+		}
+		r := NewRoom(code, l.world(), l.remove)
+		r.onToken = l.addToken
+		l.rooms[code] = r
+		go r.Run()
+		return r
+	}
+}
+
+func newRoomCode() string {
+	b := make([]byte, codeLen)
+	_, _ = rand.Read(b)
+	for i := range b {
+		b[i] = codeAlphabet[int(b[i])%len(codeAlphabet)]
+	}
+	return string(b)
 }
 
 func (l *Lobby) remove(code string) {

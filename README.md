@@ -31,11 +31,12 @@ Plain WebSockets, JSON, one envelope for every message: `{ "type": "...", "data"
 
 | Direction | Type | Data | When |
 | --- | --- | --- | --- |
-| C→S | `join` | `{ code, token? }` | First message on the socket. `token` when reconnecting |
+| C→S | `create` | `{}` | First message on the socket: open a new room. The code comes back in `assigned` |
+| C→S | `join` | `{ code, token? }` | First message on the socket: enter an existing room. `token` when reconnecting |
 | C→S | `interact` | `{ id, action, value? }` | Using an object; `value` carries a keypad code |
 | C→S | `enter` | `{ portalId }` | Walking through the exit door |
 | C→S | `room` | `{ id }` | Crossing a room boundary |
-| S→C | `assigned` | `{ side, token }` | Side assigned; keep the token for reconnects |
+| S→C | `assigned` | `{ code, side, token }` | Side dealt at random; show the code to your partner, keep the token for reconnects |
 | S→C | `waiting` | `{}` | Partner not yet connected |
 | S→C | `world` | `{ side, tileSize, camera, tiles, spawn, rooms, objects, colors, state }` | Game start or reconnect; this side only |
 | S→C | `patch` | `{ key: value, … }` | Changed keys this player can see. Always sent **before** any `fx` from the same event |
@@ -44,7 +45,7 @@ Plain WebSockets, JSON, one envelope for every message: `{ "type": "...", "data"
 | S→C | `error` | `{ reason }` | Rejected message. Socket closes after `room full` / `unknown token` |
 | S→C | `game_complete` | `{}` | A player crossed the open exit door |
 
-Room codes are 1–16 chars of `[A-Za-z0-9_-]`, upper-cased by the server. First join creates the room.
+Generated codes are 4 chars from `A-Z2-9` minus `I`/`O`. `join` accepts 1–16 chars of `[A-Za-z0-9_-]` (upper-cased) but only for a live room; `no such room` otherwise. Socket closes after `room full` / `unknown token`.
 
 ### Object types and actions
 

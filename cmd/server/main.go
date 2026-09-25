@@ -149,7 +149,8 @@ func main() {
 	log.Fatal(http.ListenAndServe(*addr, mux))
 }
 
-// serveWS upgrades the connection, waits for the first "join", then hands the socket to the room.
+// serveWS upgrades the connection, waits for the first "create" or "join", then hands the socket to the room.
+// "create" makes a room under a server-generated code (returned in "assigned"); "join" needs a live code.
 func serveWS(lobby *game.Lobby, rw http.ResponseWriter, req *http.Request) {
 	sock, err := upgrader.Upgrade(rw, req, nil)
 	if err != nil {
@@ -163,21 +164,28 @@ func serveWS(lobby *game.Lobby, rw http.ResponseWriter, req *http.Request) {
 		select {
 		case env := <-c.Inbound:
 			if room == nil {
-				if env.Type != "join" {
-					c.Send("error", map[string]string{"reason": "send join first"})
-					continue
+				switch env.Type {
+				case "create":
+					room = lobby.Create()
+					room.Join(c, "")
+				case "join":
+					var d struct {
+						Code  string `json:"code"`
+						Token string `json:"token"`
+					}
+					if err := json.Unmarshal(env.Data, &d); err != nil || !game.ValidCode(d.Code) {
+						c.Send("error", map[string]string{"reason": "bad room code"})
+						continue
+					}
+					d.Code = strings.ToUpper(d.Code)
+					if room = lobby.Get(d.Code, false); room == nil {
+						c.Send("error", map[string]string{"reason": "no such room"})
+						continue
+					}
+					room.Join(c, d.Token)
+				default:
+					c.Send("error", map[string]string{"reason": "send create or join first"})
 				}
-				var d struct {
-					Code  string `json:"code"`
-					Token string `json:"token"`
-				}
-				if err := json.Unmarshal(env.Data, &d); err != nil || !game.ValidCode(d.Code) {
-					c.Send("error", map[string]string{"reason": "bad room code"})
-					continue
-				}
-				d.Code = strings.ToUpper(d.Code)
-				room = lobby.Get(d.Code, true)
-				room.Join(c, d.Token)
 				continue
 			}
 			room.Message(c, env)

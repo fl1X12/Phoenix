@@ -160,6 +160,10 @@ func setupWorld(t *testing.T, dir string) (*client, *client, *game.Lobby) {
 	b.send("join", map[string]string{"code": "TEST"})
 	bs := b.expect("assigned")
 	b.side, b.tok = bs["side"].(string), bs["token"].(string)
+	// Sides are dealt at random; normalise so `a` is always the client holding side A.
+	if a.side == "B" {
+		a, b = b, a
+	}
 	if a.side != "A" || b.side != "B" {
 		t.Fatalf("sides: %s %s", a.side, b.side)
 	}

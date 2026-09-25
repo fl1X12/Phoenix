@@ -1,6 +1,12 @@
 package game_test
 
-import "testing"
+import (
+	"regexp"
+	"testing"
+
+	"github.com/fl1X12/phoenix/internal/game"
+	"github.com/fl1X12/phoenix/internal/world"
+)
 
 func TestSideForToken(t *testing.T) {
 	a, b, lobby := setup(t)
@@ -15,5 +21,31 @@ func TestSideForToken(t *testing.T) {
 	}
 	if _, ok := lobby.SideForToken("OTHER", a.tok); ok {
 		t.Fatal("token resolved for wrong room")
+	}
+}
+
+func TestCreateCodes(t *testing.T) {
+	w, err := world.Load(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lobby := game.NewLobby(func() *world.World { return w })
+	shape := regexp.MustCompile(`^[A-HJ-NP-Z2-9]{4}$`)
+	seen := map[string]bool{}
+	for i := 0; i < 50; i++ {
+		r := lobby.Create()
+		if !shape.MatchString(r.Code) {
+			t.Fatalf("code %q has the wrong shape", r.Code)
+		}
+		if seen[r.Code] {
+			t.Fatalf("code %q issued twice", r.Code)
+		}
+		seen[r.Code] = true
+		if lobby.Get(r.Code, false) != r {
+			t.Fatalf("code %q not findable", r.Code)
+		}
+	}
+	if lobby.Get("ZZZZ", false) != nil {
+		t.Fatal("unknown code resolved")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	mrand "math/rand/v2"
 	"reflect"
 	"sort"
 	"strings"
@@ -227,7 +228,7 @@ func (r *Room) join(c *ws.Conn, token string) {
 					p.gone = nil
 				}
 				p.conn = c
-				c.Send("assigned", map[string]string{"side": p.Side, "token": p.Token})
+				c.Send("assigned", map[string]string{"code": r.Code, "side": p.Side, "token": p.Token})
 				if r.started {
 					r.sendWorld(p)
 					r.tellOther(p, "partner", map[string]bool{"connected": true})
@@ -242,22 +243,22 @@ func (r *Room) join(c *ws.Conn, token string) {
 		c.CloseAfterSend()
 		return
 	}
-	// Fresh join: first free side in order.
-	var sides []string
+	// Fresh join: a random free side, so who joined first says nothing about which side you get.
+	var free []string
 	for s := range r.world.Sides {
-		sides = append(sides, s)
-	}
-	sort.Strings(sides)
-	for _, s := range sides {
-		if r.players[s] != nil {
-			continue
+		if r.players[s] == nil {
+			free = append(free, s)
 		}
+	}
+	sort.Strings(free) // map order is random too, but shuffle from a stable base
+	mrand.Shuffle(len(free), func(i, j int) { free[i], free[j] = free[j], free[i] })
+	for _, s := range free {
 		p := &Player{Side: s, Token: newToken(), conn: c}
 		r.players[s] = p
 		if r.onToken != nil {
 			r.onToken(r.Code, p.Token, s)
 		}
-		c.Send("assigned", map[string]string{"side": s, "token": p.Token})
+		c.Send("assigned", map[string]string{"code": r.Code, "side": s, "token": p.Token})
 		log.Printf("room %s: side %s joined", r.Code, s)
 		if len(r.players) == len(r.world.Sides) {
 			r.started = true
