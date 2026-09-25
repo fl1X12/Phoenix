@@ -33,12 +33,11 @@
         { "id": "panel_A_red",    "type": "code_panel", "x": 3,  "y": 1,  "key": "panel_A_red",    "color": "red",    "digit": 8 },
         { "id": "panel_A_green",  "type": "code_panel", "x": 13, "y": 1,  "key": "panel_A_green",  "color": "green",  "digit": 2 },
         { "id": "panel_A_blue",   "type": "code_panel", "x": 22, "y": 1,  "key": "panel_A_blue",   "color": "blue",   "digit": 4 },
-        { "id": "panel_A_yellow", "type": "code_panel", "x": 14, "y": 15, "key": "panel_A_yellow", "color": "yellow", "digit": 7 },
+        { "id": "panel_A_yellow", "type": "code_panel", "x": 14, "y": 9, "key": "panel_A_yellow", "color": "yellow", "digit": 7 },
 
         { "id": "light_A_srv", "type": "light_switch", "x": 12, "y": 10, "key": "light_A_srv.on", "label": "Light switch" },
         { "id": "lasers_A1",   "type": "lasers",       "x": 21, "y": 9,  "w": 1, "h": 7, "key": "lasers_A1" },
-        { "id": "lasers_A2",   "type": "lasers",       "x": 16, "y": 16, "w": 1, "h": 1, "key": "lasers_A2" },
-        { "id": "fire_A1",     "type": "fire",         "x": 33, "y": 9,  "w": 1, "h": 1, "key": "fire_A1" },
+        { "id": "lasers_A2",   "type": "lasers",       "x": 15, "y": 16, "w": 1, "h": 1, "key": "lasers_A2" },
         { "id": "laserlvr_A",  "type": "laser_switch", "x": 19, "y": 14, "key": "laserlvr_A.on", "label": "Laser lever" },
         { "id": "sprinkler_A", "type": "valve",        "x": 25, "y": 10, "key": "sprinkler_A.on", "latch": true, "label": "Sprinklers" },
         { "id": "valve_A",     "type": "valve",        "x": 24, "y": 14, "key": "valve_A.on",     "latch": true, "label": "Drain valve" },
@@ -90,7 +89,6 @@
         { "id": "fire_B1",     "type": "fire",         "x": 13, "y": 9,  "w": 12, "h": 1, "key": "fire_B1" },
         { "id": "laser_B1",    "type": "laser_switch", "x": 36, "y": 7,  "key": "laser_B1.on", "label": "Laser lever" },
         { "id": "laser_B2",    "type": "laser_switch", "x": 2,  "y": 16, "key": "laser_B2.on", "label": "Laser lever" },
-        { "id": "sprinkler_B", "type": "valve",        "x": 30, "y": 8,  "key": "sprinkler_B.on", "latch": true, "label": "Sprinklers" },
         { "id": "valve_B",     "type": "valve",        "x": 23, "y": 13, "key": "valve_B.on",     "latch": true, "label": "Drain valve" },
 
         { "id": "door_B4",   "type": "button_door", "x": 6,  "y": 8,  "key": "door_B4" },
@@ -120,7 +118,6 @@
     "lasers_A1": true,
     "lasers_A2": true,
     "lasers_B1": true,
-    "fire_A1": true,
     "fire_B1": true,
     "A.archive.flooded": true,
     "B.wing.flooded": true,
@@ -128,7 +125,6 @@
     "A.office.lights": false,
     "B.server.lights": false,
     "sprinkler_A.on": false,
-    "sprinkler_B.on": false,
     "laserlvr_A.on": false,
     "laser_B1.on": false,
     "laser_B2.on": false,
@@ -164,7 +160,6 @@
     { "on": "laserlvr_A:toggle", "do": [ { "toggle": "lasers_B1" }, { "fx": "laser_powerdown", "to": "B" } ] },
 
     { "on": "sprinkler_A:toggle", "do": [ { "set": { "fire_B1": false } }, { "fx": "sprinkler_hiss", "to": "B" } ] },
-    { "on": "sprinkler_B:toggle", "do": [ { "set": { "fire_A1": false } }, { "fx": "sprinkler_hiss", "to": "A" } ] },
 
     { "on": "valve_A:toggle", "do": [ { "set": { "B.wing.flooded": false } }, { "fx": "water_drain", "to": "B" } ] },
     { "on": "valve_B:toggle", "do": [ { "set": { "A.archive.flooded": false } }, { "fx": "water_drain", "to": "A" } ] },
