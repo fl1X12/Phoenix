@@ -23,6 +23,19 @@ each new room picks one at random. Every world must pass validation or the serve
 - `POST /debug/reload` — reload the world files for new rooms
 - `-voice-loop` flag — echo a player's voice frames back to them while alone in the room (solo testing)
 
+### Voice on its own machine
+
+One binary, three modes (`-mode` flag or `MODE` env):
+
+| Mode | Serves | Needs |
+| --- | --- | --- |
+| `all` (default) | game + voice relay in one process | nothing |
+| `game` | game only; sends clients the voice URL in `assigned` | `VOICE_URL=wss://<voice-host>/voice`, `INTERNAL_SECRET=<random>` |
+| `voice` | `/voice` relay only; verifies tokens against the game box | `GAME_URL=https://<game-host>`, same `INTERNAL_SECRET` |
+
+On Render: two Web Services from the same repo, same build command, start commands `./server -mode game`
+and `./server -mode voice`, env vars as above. Each needs its own keep-alive ping.
+
 Test: `go test -race ./...`
 
 ## Protocol
@@ -36,7 +49,7 @@ Plain WebSockets, JSON, one envelope for every message: `{ "type": "...", "data"
 | C→S | `interact` | `{ id, action, value? }` | Using an object; `value` carries a keypad code |
 | C→S | `enter` | `{ portalId }` | Walking through the exit door |
 | C→S | `room` | `{ id }` | Crossing a room boundary |
-| S→C | `assigned` | `{ code, side, token }` | Side dealt at random; show the code to your partner, keep the token for reconnects |
+| S→C | `assigned` | `{ code, side, token, voice? }` | Side dealt at random; show the code to your partner, keep the token for reconnects. `voice` = URL of a separate voice relay when one runs, else use `/voice` on the game host |
 | S→C | `waiting` | `{}` | Partner not yet connected |
 | S→C | `world` | `{ side, tileSize, camera, tiles, spawn, rooms, objects, colors, state }` | Game start or reconnect; this side only |
 | S→C | `patch` | `{ key: value, … }` | Changed keys this player can see. Always sent **before** any `fx` from the same event |
